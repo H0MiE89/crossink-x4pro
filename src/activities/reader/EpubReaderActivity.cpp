@@ -5319,13 +5319,22 @@ void EpubReaderActivity::setAutoPageTurnIntervalSeconds(uint16_t seconds) {
 void EpubReaderActivity::requestManualPageTurn(const bool isForwardTurn, const char* source) {
   finishManualPageTurnBrakeIfReady();
   const ManualPageTurnRequest request{isForwardTurn, source};
+  const auto enqueueManualTurn = [this, request]() {
+    if (pendingManualPageTurns.enqueue(request) == ManualPageTurnQueue::EnqueueResult::Cancelled) {
+      // A reversal needs a redraw only if the render task already committed to
+      // skipping AA for the page that has now become final again.
+      if (queuedTurnAntiAliasing.cancelDeferred()) {
+        requestUpdate();
+      }
+    }
+  };
   if (pendingManualPageTurns.hasPending()) {
-    pendingManualPageTurns.enqueue(request);
+    enqueueManualTurn();
     return;
   }
 
   if (RenderLock::peek() || (millis() - lastPageTurnTime) < MIN_MANUAL_PAGE_TURN_GAP_MS) {
-    pendingManualPageTurns.enqueue(request);
+    enqueueManualTurn();
     return;
   }
 
@@ -5344,10 +5353,18 @@ bool EpubReaderActivity::drainPendingManualPageTurn() {
   if (!section ||
       (!activeFootnotePreview && !request.isForward && currentSpineIndex == 0 && section->currentPage == 0)) {
     clearPendingManualPageTurns();
+    // A queued Previous at the start of the book is discarded. If it had
+    // already made the visible page skip AA, redraw that final page once.
+    if (queuedTurnAntiAliasing.cancelDeferred()) {
+      requestUpdate();
+    }
     return false;
   }
 
   if (request.isForward) cancelSilentNextChapterPrefetchForForwardTurn();
+  // This successor replaces the currently displayed page, so a prior deferred
+  // AA pass no longer needs recovery.
+  queuedTurnAntiAliasing.clear();
   pendingManualPageTurns.markDispatched(request);
   pageTurn(request.isForward, request.source);
   return true;
@@ -6751,11 +6768,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   const bool pageHasImagesNeedingDecode = pageHasImages && page->hasImagesNeedingDecode();
   const bool foregroundBlack = ReaderUtils::readerForegroundBlack();
   const bool needsImageGrayscale = pageHasImages;
-  const bool needsTextGrayscale = SETTINGS.textAntiAliasing && foregroundBlack;
-  const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
-  const bool tiledGrayscale = needsAnyGrayscale && renderer.supportsStripGrayscale();
-  const bool overlapRefresh =
-      tiledGrayscale && !pageHasImages && pagesUntilFullRefresh > 1 && renderer.supportsAsyncGrayscaleBase();
+  bool needsTextGrayscale = SETTINGS.textAntiAliasing && foregroundBlack;
   const int contentBottom = renderer.getScreenHeight() - orientedMarginBottom;
 
   const auto finalizeBufferComposition = [&]() {
@@ -6833,6 +6846,23 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   if (!updatePanel) {
     return true;
   }
+  // The pending count excludes the page currently being rendered. Check it at
+  // the last point before choosing a grayscale base or composing AA planes so
+  // late rapid input can still skip AA on a page about to be replaced.
+  bool deferTextAntiAliasing = false;
+  if (needsTextGrayscale && pendingManualPageTurns.hasPending()) {
+    queuedTurnAntiAliasing.beginDecision();
+    deferTextAntiAliasing = queuedTurnAntiAliasing.finishDecision(pendingManualPageTurns.hasPending());
+  } else {
+    queuedTurnAntiAliasing.clear();
+  }
+  if (deferTextAntiAliasing) {
+    needsTextGrayscale = false;
+  }
+  const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
+  const bool tiledGrayscale = needsAnyGrayscale && renderer.supportsStripGrayscale();
+  const bool overlapRefresh =
+      tiledGrayscale && !pageHasImages && pagesUntilFullRefresh > 1 && renderer.supportsAsyncGrayscaleBase();
   if (pageHasImages) {
     // Keep the legacy blank/base sequence unless the controller can transition
     // directly to the complete image base.

@@ -36,6 +36,19 @@ TEST(ManualPageTurnQueue, DrainsOneQueuedTurnAtATimeInOrder) {
   EXPECT_FALSE(queue.takeNext(request));
 }
 
+TEST(ManualPageTurnQueue, ReportsWhetherTheDispatchedTurnHasASuccessor) {
+  ManualPageTurnQueue queue;
+  queue.enqueue(next());
+  queue.enqueue(next());
+
+  ManualPageTurnRequest request;
+  ASSERT_TRUE(queue.takeNext(request));
+  EXPECT_TRUE(queue.hasPending());
+
+  ASSERT_TRUE(queue.takeNext(request));
+  EXPECT_FALSE(queue.hasPending());
+}
+
 TEST(ManualPageTurnQueue, OppositeDirectionCancelsAndConsumesTheInput) {
   ManualPageTurnQueue queue;
   queue.enqueue(next());
@@ -62,6 +75,40 @@ TEST(ManualPageTurnQueue, OppositeDirectionCancelsTheLastQueuedTurnWhileItRender
   EXPECT_EQ(queue.enqueue(previous()), ManualPageTurnQueue::EnqueueResult::Cancelled);
   EXPECT_FALSE(queue.hasPending());
   EXPECT_FALSE(queue.hasDispatched());
+}
+
+TEST(ManualPageTurnQueue, OppositeDirectionCancelsAQueuedSuccessorWhileItRenders) {
+  ManualPageTurnQueue queue;
+  queue.markDispatched(next());
+  queue.enqueue(next());
+
+  EXPECT_EQ(queue.enqueue(previous()), ManualPageTurnQueue::EnqueueResult::Cancelled);
+  EXPECT_FALSE(queue.hasPending());
+  EXPECT_FALSE(queue.hasDispatched());
+}
+
+TEST(QueuedTurnAntiAliasingState, CancellationDuringDecisionKeepsTheCurrentRenderAntiAliased) {
+  QueuedTurnAntiAliasingState state;
+  state.beginDecision();
+
+  EXPECT_FALSE(state.cancelDeferred());
+  EXPECT_FALSE(state.finishDecision(true));
+}
+
+TEST(QueuedTurnAntiAliasingState, CancellationAfterDeferralRequestsRecoveryRedraw) {
+  QueuedTurnAntiAliasingState state;
+  state.beginDecision();
+
+  ASSERT_TRUE(state.finishDecision(true));
+  EXPECT_TRUE(state.cancelDeferred());
+}
+
+TEST(QueuedTurnAntiAliasingState, DiscardingAnOutOfBoundsSuccessorRequestsRecoveryRedraw) {
+  QueuedTurnAntiAliasingState state;
+  state.beginDecision();
+
+  ASSERT_TRUE(state.finishDecision(true));
+  EXPECT_TRUE(state.cancelDeferred());
 }
 
 TEST(ManualPageTurnQueue, ClearDiscardsPendingAndDispatchedTurns) {

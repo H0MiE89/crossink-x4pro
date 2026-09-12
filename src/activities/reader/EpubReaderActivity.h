@@ -149,6 +149,7 @@ class EpubReaderActivity final : public Activity {
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
   ManualPageTurnQueue pendingManualPageTurns;
+  QueuedTurnAntiAliasingState queuedTurnAntiAliasing;
   unsigned long pageShownAtMs = 0UL;
   unsigned long lastRenderCompleteMs = 0UL;
   int idlePrewarmSpine = -1;
