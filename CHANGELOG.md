@@ -15,6 +15,7 @@
 ### Fixed
 
 - Silent restarts now preserve the frontlight state instead of applying wake or schedule settings.
+- The Home button now returns from Customize Status Bar to the previous menu instead of leaving the reader.
 - OPDS book downloads can follow secure redirects without sharing catalog credentials with the download host.
 - Importing CrossPoint settings preserves tap and swipe modes without carrying over a stale reader touchscreen lock.
 - Saved clippings no longer highlight unrelated single words at page boundaries when matching text after a layout change.

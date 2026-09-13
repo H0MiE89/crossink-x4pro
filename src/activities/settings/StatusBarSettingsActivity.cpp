@@ -242,6 +242,11 @@ void StatusBarSettingsActivity::onEnter() {
 
 void StatusBarSettingsActivity::onExit() { Activity::onExit(); }
 
+bool StatusBarSettingsActivity::handleHomeGesture() {
+  finish();
+  return true;
+}
+
 void StatusBarSettingsActivity::loop() {
   if (optionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
 
