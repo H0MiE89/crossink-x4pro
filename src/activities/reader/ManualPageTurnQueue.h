@@ -20,8 +20,8 @@ class ManualPageTurnQueue {
   };
 
   // The input loop appends requests while the render task reads this state to
-  // decide whether the current page is worth an anti-aliasing pass. The actual
-  // entries remain input-loop-owned; only the count crosses that boundary.
+  // decide whether the current page is worth full-quality rendering. The
+  // actual entries remain input-loop-owned; only the count crosses that boundary.
   bool hasPending() const { return count.load(std::memory_order_acquire) > 0; }
 
   EnqueueResult enqueue(const ManualPageTurnRequest request) {
@@ -73,10 +73,10 @@ class ManualPageTurnQueue {
   bool hasDispatchedTurn = false;
 };
 
-// Coordinates the render task's late AA decision with an opposite-direction
-// input. A cancellation during the decision lets the current render keep AA;
-// a cancellation after AA was deferred needs a recovery redraw.
-class QueuedTurnAntiAliasingState {
+// Coordinates the render task's quality decision with an opposite-direction
+// input. A cancellation during the decision lets the current render keep its
+// AA and images; a cancellation after either was deferred needs a recovery redraw.
+class QueuedTurnRenderingState {
  public:
   void beginDecision() { state.store(DECIDING, std::memory_order_release); }
 

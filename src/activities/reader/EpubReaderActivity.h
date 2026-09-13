@@ -149,7 +149,7 @@ class EpubReaderActivity final : public Activity {
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
   ManualPageTurnQueue pendingManualPageTurns;
-  QueuedTurnAntiAliasingState queuedTurnAntiAliasing;
+  QueuedTurnRenderingState queuedTurnRendering;
   unsigned long pageShownAtMs = 0UL;
   unsigned long lastRenderCompleteMs = 0UL;
   int idlePrewarmSpine = -1;
@@ -437,7 +437,7 @@ class EpubReaderActivity final : public Activity {
   void applyOrientation(uint8_t orientation);
   void requestManualPageTurn(bool isForwardTurn, const char* source);
   bool drainPendingManualPageTurn();
-  void clearPendingManualPageTurns();
+  void clearPendingManualPageTurns(bool requestRecoveryRedraw = true);
   void finishManualPageTurnBrakeIfReady();
   void cancelSilentNextChapterPrefetchForForwardTurn();
   void pageTurn(bool isForwardTurn, const char* source = "unknown");

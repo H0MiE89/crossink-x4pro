@@ -87,24 +87,32 @@ TEST(ManualPageTurnQueue, OppositeDirectionCancelsAQueuedSuccessorWhileItRenders
   EXPECT_FALSE(queue.hasDispatched());
 }
 
-TEST(QueuedTurnAntiAliasingState, CancellationDuringDecisionKeepsTheCurrentRenderAntiAliased) {
-  QueuedTurnAntiAliasingState state;
+TEST(QueuedTurnRenderingState, CancellationDuringDecisionKeepsTheCurrentRenderAtFullQuality) {
+  QueuedTurnRenderingState state;
   state.beginDecision();
 
   EXPECT_FALSE(state.cancelDeferred());
   EXPECT_FALSE(state.finishDecision(true));
 }
 
-TEST(QueuedTurnAntiAliasingState, CancellationAfterDeferralRequestsRecoveryRedraw) {
-  QueuedTurnAntiAliasingState state;
+TEST(QueuedTurnRenderingState, CancellationAfterDeferralRequestsRecoveryRedraw) {
+  QueuedTurnRenderingState state;
   state.beginDecision();
 
   ASSERT_TRUE(state.finishDecision(true));
   EXPECT_TRUE(state.cancelDeferred());
 }
 
-TEST(QueuedTurnAntiAliasingState, DiscardingAnOutOfBoundsSuccessorRequestsRecoveryRedraw) {
-  QueuedTurnAntiAliasingState state;
+TEST(QueuedTurnRenderingState, ClearingADeferredQueueRequestsRecoveryRedraw) {
+  QueuedTurnRenderingState state;
+  state.beginDecision();
+
+  ASSERT_TRUE(state.finishDecision(true));
+  EXPECT_TRUE(state.cancelDeferred());
+}
+
+TEST(QueuedTurnRenderingState, DiscardingAnOutOfBoundsSuccessorRequestsRecoveryRedraw) {
+  QueuedTurnRenderingState state;
   state.beginDecision();
 
   ASSERT_TRUE(state.finishDecision(true));

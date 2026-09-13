@@ -8,7 +8,7 @@
 ### Changed
 
 - Web portal pages reuse browser-cached content after checking for firmware updates.
-- Rapid queued EPUB page turns defer text anti-aliasing until the final page, making intermediate turns faster.
+- Rapid queued EPUB page turns defer text anti-aliasing and image loading until the final page, making intermediate turns faster.
 
 ### Fixed
 
