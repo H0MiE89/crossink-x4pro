@@ -342,7 +342,6 @@ constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC1EAB007;
 constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
 constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
 constexpr uint32_t SILENT_REBOOT_READER_CLEAN_IMAGE_BASE = 1U << 0;
-constexpr uint32_t SILENT_REBOOT_FOLLOW_LIGHT_WAKE_POLICY = 1U << 1;
 constexpr uint32_t SILENT_READER_PAGE_BUILD_MAGIC = 0xC1EAB017;
 constexpr uint32_t SILENT_READER_PAGE_BUILD_AUTO_TURN = 1U << 0;
 constexpr uint32_t NETWORK_RENDER_TASK_STACK_BYTES = 8192;
@@ -397,10 +396,6 @@ static void silentRestartToHome(const uint32_t payload, const char* const descri
 
 void silentRestart() { silentRestartToHome(0, "target=home"); }
 
-void silentRestartAfterNetwork() {
-  silentRestartToHome(SILENT_REBOOT_FOLLOW_LIGHT_WAKE_POLICY, "target=home after network");
-}
-
 void restartToHomeAfterStorageHandoff() {
   // Keep this distinct from other callers: USB Drive has released raw SD
   // storage and must reboot into Home before any normal filesystem work runs.
@@ -433,24 +428,18 @@ bool consumeSilentRestartReaderPageBuild(const std::string& bookPath, uint16_t& 
   return true;
 }
 
-static void silentRestartToReader(const bool cleanImageBaseOnEntry, const bool followsWakeLightPolicy) {
+static void silentRestartToReaderImpl(const bool cleanImageBaseOnEntry) {
   if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
   silentRebootTarget = SILENT_REBOOT_TARGET_READER;
-  silentRebootPayload = (cleanImageBaseOnEntry ? SILENT_REBOOT_READER_CLEAN_IMAGE_BASE : 0) |
-                        (followsWakeLightPolicy ? SILENT_REBOOT_FOLLOW_LIGHT_WAKE_POLICY : 0);
+  silentRebootPayload = cleanImageBaseOnEntry ? SILENT_REBOOT_READER_CLEAN_IMAGE_BASE : 0;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
-  LOG_DBG("MAIN", "Silent restart (target=reader cleanImageBase=%d wakeLightPolicy=%d)", cleanImageBaseOnEntry ? 1 : 0,
-          followsWakeLightPolicy ? 1 : 0);
+  LOG_DBG("MAIN", "Silent restart (target=reader cleanImageBase=%d)", cleanImageBaseOnEntry ? 1 : 0);
   GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
   delay(50);
   restartWithSilentToken();
 }
 
-void silentRestartToReader(const bool cleanImageBaseOnEntry) { silentRestartToReader(cleanImageBaseOnEntry, false); }
-
-void silentRestartToReaderAfterNetwork(const bool cleanImageBaseOnEntry) {
-  silentRestartToReader(cleanImageBaseOnEntry, true);
-}
+void silentRestartToReader(const bool cleanImageBaseOnEntry) { silentRestartToReaderImpl(cleanImageBaseOnEntry); }
 
 void silentRestartToNetwork(const NetworkBootTarget target, const uint32_t payload) {
   if (deepSleepInProgress) return;
@@ -1226,8 +1215,6 @@ void setup() {
   const bool cleanImageBaseOnEntry =
       snapshotTarget == SILENT_REBOOT_TARGET_READER && (snapshotPayload & SILENT_REBOOT_READER_CLEAN_IMAGE_BASE) != 0;
   const bool isNetworkResume = snapshotTarget >= static_cast<uint32_t>(NetworkBootTarget::OTA);
-  const bool followsWakeLightPolicy =
-      isNetworkResume || (snapshotPayload & SILENT_REBOOT_FOLLOW_LIGHT_WAKE_POLICY) != 0;
   // KOReader Sync, OPDS, File Transfer, and Manage Fonts can render their
   // parent screens while a deferred Wi-Fi child is completing. On S3 devices,
   // keep the reader-sized render stack without loading the rest of the reader
@@ -1345,11 +1332,10 @@ void setup() {
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
   logBootHeap("boot state ready");
-  // Internal silent restarts retain the current light state. Network entry and
-  // exit restarts must honor Restore on Wake like a normal user wake.
+  // Silent restarts are invisible recovery steps, so they always retain the
+  // current light state rather than applying wake or schedule policy.
   const bool wasLightOnBeforeSleep = SETTINGS.frontlightOn != 0;
-  const bool preserveLightAcrossRestart =
-      FrontlightSchedule::shouldPreserveLightAcrossRestart(isSilentReboot, followsWakeLightPolicy);
+  const bool preserveLightAcrossRestart = FrontlightSchedule::shouldPreserveLightAcrossRestart(isSilentReboot);
   bool restoreLightOn = FrontlightSchedule::shouldRestoreLightOnStart(
       preserveLightAcrossRestart, SETTINGS.frontlightRestoreOnWake != 0, wasLightOnBeforeSleep);
   if (FrontlightSchedule::shouldApplyOnWakeSchedule(preserveLightAcrossRestart, SETTINGS.frontlightRestoreOnWake != 0,
@@ -1534,7 +1520,7 @@ void setup() {
     }
     if (!launched) {
       LOG_ERR("MAIN", "Minimal network boot target failed; returning home");
-      silentRestartAfterNetwork();
+      silentRestart();
     }
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
              !APP_STATE.openEpubPath.empty()) {
