@@ -44,7 +44,7 @@
       "firmware_sha256": "63fd110283fb2ad5169ed458df0874485cbdf65d6fd29c5d8322a822deda81fd",
       "size": 6017856,
       "supported_devices": [
-        "x4-pro"
+        "x4pro"
       ]
     },
     {
@@ -59,7 +59,7 @@
       "firmware_sha256": "5bad56a02793becd9010675df24c5afbf89dffeedf274d0bd070ec42d37f6493",
       "size": 5851472,
       "supported_devices": [
-        "x4-classic"
+        "x4c"
       ]
     }
   ]
