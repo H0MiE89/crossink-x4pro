@@ -4,6 +4,7 @@
 
 - Hidden folders can be created using the web file manager now when prefixed with a dot.
 - Choose whole numbers, one decimal, or two decimals for the book progress percentage in status bar settings.
+- Two-finger Screen Rotation can be turned off in Settings > Controls > Taps & Gestures on multi-touch devices.
 
 ### Changed
 

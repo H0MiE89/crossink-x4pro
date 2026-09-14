@@ -681,6 +681,8 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
     // --- Controls ---
     add(SettingInfo::Toggle(StrId::STR_PINCH_FONT_RESIZE, &CrossPointSettings::pinchFontResizeEnabled,
                             "pinchFontResizeEnabled", StrId::STR_CAT_CONTROLS));
+    add(SettingInfo::Toggle(StrId::STR_TWO_FINGER_ROTATION, &CrossPointSettings::twoFingerRotationEnabled,
+                            "twoFingerRotationEnabled", StrId::STR_CAT_CONTROLS));
     const std::vector<StrId> twoFingerSwipeActions = {
         StrId::STR_NOT_SET,          StrId::STR_INCREASE_BRIGHTNESS, StrId::STR_DECREASE_BRIGHTNESS,
         StrId::STR_INCREASE_WARMTH,  StrId::STR_DECREASE_WARMTH,     StrId::STR_NEXT_CHAPTER,
@@ -966,6 +968,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                     s.nameId == StrId::STR_DISABLE_TOUCHSCREEN || s.nameId == StrId::STR_NEXT_PAGE ||
                                     s.nameId == StrId::STR_PREV_PAGE || s.nameId == StrId::STR_TAP_HIDE_STATUS_BAR ||
                                     s.nameId == StrId::STR_PINCH_FONT_RESIZE ||
+                                    s.nameId == StrId::STR_TWO_FINGER_ROTATION ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_UP ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_DOWN ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_LEFT ||
@@ -977,6 +980,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     v.erase(std::remove_if(v.begin(), v.end(),
                            [](const SettingInfo& s) {
                              return s.nameId == StrId::STR_PINCH_FONT_RESIZE ||
+                                    s.nameId == StrId::STR_TWO_FINGER_ROTATION ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_UP ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_DOWN ||
                                     s.nameId == StrId::STR_TWO_FINGER_SWIPE_LEFT ||
@@ -1188,11 +1192,13 @@ inline std::vector<SettingInfo> buildControlsSettingsParentList(const std::vecto
 inline std::vector<SettingInfo> buildControlsTapsGesturesSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
   const bool hasPinch = hasSettingByName(allSettings, StrId::STR_PINCH_FONT_RESIZE);
+  const bool hasRotation = hasSettingByName(allSettings, StrId::STR_TWO_FINGER_ROTATION);
   const bool hasTwoFingerSwipe = hasSettingByName(allSettings, StrId::STR_TWO_FINGER_SWIPE_UP);
-  settings.reserve(3 + (hasPinch ? 1u : 0u) + (hasTwoFingerSwipe ? 1u : 0u));
+  settings.reserve(3 + (hasPinch ? 1u : 0u) + (hasRotation ? 1u : 0u) + (hasTwoFingerSwipe ? 1u : 0u));
   addSettingByName(settings, allSettings, StrId::STR_NEXT_PAGE);
   addSettingByName(settings, allSettings, StrId::STR_PREV_PAGE);
   if (hasPinch) addSettingByName(settings, allSettings, StrId::STR_PINCH_FONT_RESIZE);
+  if (hasRotation) addSettingByName(settings, allSettings, StrId::STR_TWO_FINGER_ROTATION);
   addSettingByName(settings, allSettings, StrId::STR_TAP_HIDE_STATUS_BAR);
   if (hasTwoFingerSwipe) {
     settings.push_back(SettingInfo::Submenu(StrId::STR_TWO_FINGER_SWIPE, SettingAction::ControlsTwoFingerSwipe));

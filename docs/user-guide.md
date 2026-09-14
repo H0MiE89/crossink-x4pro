@@ -350,6 +350,9 @@ which status-bar items are shown.
     **Tap Only**, **Swipe Only**, **Inverted Tap**, or **Disabled** independently.
   - **Pinch to Resize Font** (multi-touch devices): Enable or disable changing
     the font size with a two-finger pinch in EPUB and TXT readers.
+  - **Two-finger Screen Rotation** (multi-touch devices): Enable or disable
+    twisting two fingers to rotate the reading orientation in EPUB and TXT
+    readers.
   - **Tap to Hide Status Bar**: Enable or disable tapping the visible status-bar
     area to show or hide it for the current reading session.
   - **Two-finger Swipe** (multi-touch devices): Assign an action to each

@@ -189,8 +189,11 @@ class SimulatorSmokeTest {
           gestures[1].nameId != StrId::STR_PREV_PAGE || gestures[0].enumValues != gestures[1].enumValues) {
         fail("Page gesture settings order/options mismatch");
       }
-      const size_t statusIndex = gpio.supportsMultiTouch() ? 3 : 2;
-      if (gestures[statusIndex].nameId != StrId::STR_TAP_HIDE_STATUS_BAR) {
+      if (gpio.supportsMultiTouch() && (gestures.size() < 4 || gestures[3].nameId != StrId::STR_TWO_FINGER_ROTATION)) {
+        fail("Two-finger rotation gesture setting order mismatch");
+      }
+      const size_t statusIndex = gpio.supportsMultiTouch() ? 4 : 2;
+      if (gestures.size() <= statusIndex || gestures[statusIndex].nameId != StrId::STR_TAP_HIDE_STATUS_BAR) {
         fail("Status bar gesture setting order mismatch");
       }
     } else if (!gestures.empty()) {

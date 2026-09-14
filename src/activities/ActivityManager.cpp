@@ -214,6 +214,7 @@ bool applyTwoFingerSwipeAction(Activity& activity, MappedInputManager& mappedInp
 }
 
 bool applyTwoFingerRotation(Activity& activity, MappedInputManager& mappedInput) {
+  if (!SETTINGS.twoFingerRotationEnabled) return false;
   MappedInputManager::CompletedRotation completed;
   if (!mappedInput.wasCompletedMultiTouchRotation(completed)) return false;
   // Rotate the content opposite the physical gesture so it feels like the

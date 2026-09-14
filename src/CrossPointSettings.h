@@ -467,6 +467,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t disableReaderTouchscreen = 0;
   // Available only on multi-touch hardware; defaults on for pinch font resizing.
   uint8_t pinchFontResizeEnabled = 1;
+  // Two-finger twist rotates the reader screen. Multi-touch hardware only.
+  uint8_t twoFingerRotationEnabled = 1;
   // Configurable two-finger swipes. A non-empty action may be assigned to one direction only.
   uint8_t twoFingerSwipeUp = TWO_FINGER_SWIPE_NOT_SET;
   uint8_t twoFingerSwipeDown = TWO_FINGER_SWIPE_NOT_SET;

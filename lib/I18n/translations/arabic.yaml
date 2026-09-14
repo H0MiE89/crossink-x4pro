@@ -127,6 +127,7 @@ STR_LONG_PRESS_SKIP: "الضغط لفترة طويلة على تخطي الفص�
 STR_CHAPTER_SKIP_OPT: "تخطي الفصل"
 STR_CHANGE_FONT_SIZE: "تغيير حجم الخط"
 STR_PINCH_FONT_RESIZE: "تغيير حجم الخط بالقرص"
+STR_TWO_FINGER_ROTATION: "تدوير بإصبعين"
 STR_FRONT_BTN_FOLLOW_ORIENTATION: "تدوير الأزرار الأمامية مع الشاشة"
 STR_LONG_PRESS_BEHAVIOR_OFF: "إيقاف"
 STR_LONG_PRESS_BEHAVIOR_SKIP: "تخطي الفصل"
