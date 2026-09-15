@@ -576,6 +576,43 @@ bool CssParser::selectorMatchesElement(std::string_view selector, std::string_vi
 
 // Rule processing
 
+CssParser::ParsedRule* CssParser::findPsramParsedRule(const std::string_view selector) const {
+  if (!parsedRuleBuckets_) return nullptr;
+  const size_t bucket = SvHash{}(selector) % PARSED_RULE_BUCKETS;
+  for (auto* rule = parsedRuleBuckets_[bucket]; rule; rule = rule->bucketNext) {
+    if (SvEqual{}(rule->selector, selector)) return rule;
+  }
+  return nullptr;
+}
+
+bool CssParser::addPsramParsedRule(const std::string_view selector, const CssStyle& style) {
+  if (!parsedRuleBuckets_) {
+    if (!parsedRuleArena_.init(4096)) return false;  // Arena logs fallible allocation failures.
+    parsedRuleBuckets_ = arenaNewArray<ParsedRule*>(parsedRuleArena_, PARSED_RULE_BUCKETS);
+    if (!parsedRuleBuckets_) {
+      LOG_ERR("CSS", "Failed to allocate PSRAM rule buckets");
+      return false;
+    }
+  }
+  const auto checkpoint = parsedRuleArena_.save();
+  auto* key = static_cast<char*>(parsedRuleArena_.alloc(selector.size(), alignof(char)));
+  auto* rule = arenaNew<ParsedRule>(parsedRuleArena_);
+  if (!key || !rule) {
+    parsedRuleArena_.restore(checkpoint);
+    LOG_ERR("CSS", "Failed to allocate PSRAM CSS rule (%u existing)", static_cast<unsigned>(psramParsedRuleCount_));
+    return false;
+  }
+  memcpy(key, selector.data(), selector.size());
+  rule->selector = {key, selector.size()};
+  rule->style = style;
+  const size_t bucket = SvHash{}(selector) % PARSED_RULE_BUCKETS;
+  rule->bucketNext = parsedRuleBuckets_[bucket];
+  rule->next = parsedRuleHead_;
+  parsedRuleBuckets_[bucket] = parsedRuleHead_ = rule;
+  ++psramParsedRuleCount_;
+  return true;
+}
+
 bool CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const CssStyle& style) {
   // Skip rules that don't define any supported properties to save RAM.
   if (!style.defined.anySet()) {
@@ -583,7 +620,7 @@ bool CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
   }
 
   // Check if we've reached the rule limit before processing
-  if (rulesBySelector_.size() >= MAX_RULES) {
+  if (parsedRuleCount() >= MAX_RULES) {
     LOG_ERR("CSS", "Reached max rules limit (%zu), treating CSS parse as incomplete", MAX_RULES);
     return false;
   }
@@ -601,7 +638,7 @@ bool CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
     }
     LOG_ERR("CSS", "Stopping CSS parse before rule allocation (free=%u maxAlloc=%u rules=%u)",
             static_cast<unsigned>(freeHeap), static_cast<unsigned>(largestBlock),
-            static_cast<unsigned>(rulesBySelector_.size()));
+            static_cast<unsigned>(parsedRuleCount()));
     return false;
   };
   forEachDelimitedToken(
@@ -655,7 +692,7 @@ bool CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
         }
 
         // Skip if this would exceed the rule limit
-        if (rulesBySelector_.size() >= MAX_RULES) {
+        if (parsedRuleCount() >= MAX_RULES) {
           LOG_ERR("CSS", "Reached max rules limit, treating CSS parse as incomplete");
           limitReached = true;
           return;
@@ -663,6 +700,14 @@ bool CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
 
         // Store or merge with existing. Hash/equal are case-insensitive, so two
         // selectors that differ only in ASCII case collide on insert and merge.
+        if (usePsramParsedRules_) {
+          if (auto* existing = findPsramParsedRule(sel)) {
+            existing->style.applyOver(style);
+          } else if (!hasHeapForRuleGrowth() || !addPsramParsedRule(sel, style)) {
+            limitReached = true;
+          }
+          return;
+        }
         auto it = rulesBySelector_.find(sel);
         if (it != rulesBySelector_.end()) {
           it->second.applyOver(style);
@@ -821,7 +866,7 @@ bool CssParser::loadFromStream(FsFile& source) {
 
   if (stopParsing) {
     LOG_ERR("CSS", "CSS parse stopped after %zu bytes with %zu selector rules and %zu descendant rules loaded",
-            totalRead, rulesBySelector_.size(), descendantRules_.size());
+            totalRead, parsedRuleCount(), descendantRules_.size());
     return false;
   }
 
@@ -1079,6 +1124,10 @@ bool CssParser::lookupArenaRule(std::string_view selector, CssStyle& outStyle) c
 }
 
 bool CssParser::lookupRule(std::string_view selector, CssStyle& outStyle) const {
+  if (const auto* rule = findPsramParsedRule(selector)) {
+    outStyle = rule->style;
+    return true;
+  }
   if (auto it = rulesBySelector_.find(selector); it != rulesBySelector_.end()) {
     outStyle = it->second;
     return true;
@@ -1210,7 +1259,7 @@ bool CssParser::saveToCache(const bool complete) const {
   writeByte(static_cast<uint8_t>(complete ? 0 : CSS_CACHE_FLAG_PARTIAL));
 
   // Write rule count
-  const auto ruleCount = static_cast<uint16_t>(rulesBySelector_.size());
+  const auto ruleCount = static_cast<uint16_t>(parsedRuleCount());
   writeBytes(&ruleCount, sizeof(ruleCount));
 
   Arena indexArena;
@@ -1233,18 +1282,24 @@ bool CssParser::saveToCache(const bool complete) const {
   }
 
   // Write each simple rule: selector string + CssStyle fields
-  for (const auto& pair : rulesBySelector_) {
+  auto writeRule = [&](const std::string_view selector, const CssStyle& style) {
     const uint32_t ruleOffset = file.position();
-    const auto selectorLen = static_cast<uint16_t>(pair.first.size());
-    if (!writeBytes(&selectorLen, sizeof(selectorLen)) || !writeBytes(pair.first.data(), selectorLen) ||
-        !writeCssStylePayload(file, pair.second)) {
+    const auto selectorLen = static_cast<uint16_t>(selector.size());
+    if (!writeBytes(&selectorLen, sizeof(selectorLen)) || !writeBytes(selector.data(), selectorLen) ||
+        !writeCssStylePayload(file, style)) {
       writeOk = false;
-      break;
+      return;
     }
-    if (!indexEntries.push_back({selectorHash(pair.first), ruleOffset})) {
+    if (!indexEntries.push_back({selectorHash(selector), ruleOffset})) {
       writeOk = false;
-      break;
     }
+  };
+  for (const auto& pair : rulesBySelector_) {
+    writeRule(pair.first, pair.second);
+    if (!writeOk) break;
+  }
+  for (const auto* rule = parsedRuleHead_; rule && writeOk; rule = rule->next) {
+    writeRule(rule->selector, rule->style);
   }
 
   // Write descendant rules: count, then (ancestorSelector, subjectSelector, CssStyle) per entry

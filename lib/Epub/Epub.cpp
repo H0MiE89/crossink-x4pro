@@ -722,9 +722,7 @@ void Epub::releaseCssFileList() {
 }
 
 Epub::CssParseStatus Epub::parseCssFiles(const bool forceRebuild) const {
-  // Maximum CSS file size we'll attempt to parse (uncompressed)
-  // Larger files risk memory exhaustion on ESP32
-  constexpr size_t MAX_CSS_FILE_SIZE = 128 * 1024;  // 128KB
+  const size_t maxCssFileSize = CssParser::maxSourceBytes();
   // Minimum heap required before attempting CSS parsing
   constexpr size_t MIN_HEAP_FOR_CSS_PARSING = 64 * 1024;  // 64KB
 
@@ -816,8 +814,8 @@ Epub::CssParseStatus Epub::parseCssFiles(const bool forceRebuild) const {
     // Check CSS file size before decompressing - skip files that are too large
     size_t cssFileSize = 0;
     if (getItemSize(cssPath, &cssFileSize)) {
-      if (cssFileSize > MAX_CSS_FILE_SIZE) {
-        LOG_ERR("EBP", "CSS file too large (%zu bytes > %zu max), skipping: %s", cssFileSize, MAX_CSS_FILE_SIZE,
+      if (cssFileSize > maxCssFileSize) {
+        LOG_ERR("EBP", "CSS file too large (%zu bytes > %zu max), skipping: %s", cssFileSize, maxCssFileSize,
                 cssPath.c_str());
         continue;
       }
@@ -1443,9 +1441,15 @@ bool Epub::extractItemToFile(const std::string& itemHref, const std::string& des
     return false;
   }
 
+  const uint32_t start = millis();
   const bool success = readItemContentsToStream(itemHref, out, chunkSize);
+  const uint32_t written = millis();
+  const size_t bytes = out.size();
   out.flush();
   out.close();
+  LOG_DBG("EBP", "Extracted %s: ok=%d bytes=%u stream=%ums flush/close=%ums chunk=%u", itemHref.c_str(), success,
+          static_cast<unsigned>(bytes), static_cast<unsigned>(written - start),
+          static_cast<unsigned>(millis() - written), static_cast<unsigned>(chunkSize));
   if (!success) {
     Storage.remove(destPath.c_str());
   }

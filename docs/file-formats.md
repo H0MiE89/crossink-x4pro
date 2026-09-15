@@ -761,3 +761,12 @@ with SD font and AA, visit/revisit image pages and sleep, compare portrait and
 landscape output, and record internal free/largest heap blocks and low-water
 marks. Repeat corrupt sidecars, full/read-only SD, interrupted writes and book
 replacement at the same path on X3/X4, Sticky (SPI SD) and X4 Pro (SDMMC).
+
+### CSS rules cache revision 16
+
+Revision 16 retains the existing binary layout and invalidates older CSS caches
+because PSRAM devices now admit streamed stylesheet sources up to 512 KiB
+(previously 128 KiB). C3 retains its 128 KiB limit. Existing rule-count and
+internal-memory guards still apply. Rebuilding an invalid CSS cache also
+invalidates section caches through the existing EPUB-load path, so books that
+previously cached zero rules can restore hidden content and layout rules.

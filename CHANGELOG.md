@@ -9,6 +9,7 @@
 ### Changed
 
 - UC8179 grayscale images use a slightly longer waveform for stronger midtone separation.
+- EPUB image preparation writes extracted data in chunks and reuses two cached images on PSRAM readers.
 - Web portal pages reuse browser-cached content after checking for firmware updates.
 - Rapid queued EPUB page turns defer text anti-aliasing and image loading until the final page, making intermediate turns faster.
 
@@ -17,6 +18,8 @@
 - Silent restarts now preserve the frontlight state instead of applying wake or schedule settings.
 - The Home button now returns from Customize Status Bar to the previous menu instead of leaving the reader.
 - OPDS book downloads can follow secure redirects without sharing catalog credentials with the download host.
+- Larger EPUB stylesheets work on PSRAM readers, including rules that hide duplicate images.
+- JPEG-heavy EPUBs can use PSRAM for decoding on supported readers, leaving internal memory available for reading.
 - Importing CrossPoint settings preserves tap and swipe modes without carrying over a stale reader touchscreen lock.
 - Saved clippings no longer highlight unrelated single words at page boundaries when matching text after a layout change.
 - Quick Lock sleep now respects the configured short Power-button wake behavior.
