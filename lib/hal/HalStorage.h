@@ -52,6 +52,7 @@ class HalStorage {
   bool disconnectUsbDriveHost();
   void endUsbDrive();
   UsbDriveState usbDriveState() const;
+  bool usbDriveHostSuspended() const;
 
   HalFile open(const char* path, const oflag_t oflag = O_RDONLY);
   bool mkdir(const char* path, const bool pFlag = true);

@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- USB Drive exits cleanly when a connected host is unplugged without ejecting first.
 - EPUB ordered lists show numbers, respect marker-free styles, and retain their container indentation.
 - EPUB chapter layout releases rebuildable font caches first, reducing low-memory failures on X3/X4.
 - KOReader Sync uploads retain exact text-node positions, including zero offsets and UTF-8 text.
