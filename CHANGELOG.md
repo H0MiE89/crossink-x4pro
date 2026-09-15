@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- KOReader Sync uploads retain exact text-node positions, including zero offsets and UTF-8 text.
 - Saved clipping highlights now retain Focus Reading's custom-font glyphs instead of showing replacement characters.
 - EPUB dictionary lookup can select an individual part of a hyphenated word.
 - Short Power-button frontlight and touchscreen shortcuts in EPUB books no longer run the configured long-press action.
