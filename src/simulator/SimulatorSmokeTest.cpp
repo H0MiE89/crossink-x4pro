@@ -182,6 +182,10 @@ class SimulatorSmokeTest {
   }
 
   static void verifyReaderControlsSettings() {
+    const auto& base = getBaseSettingsList();
+    if (base.size() > BASE_SETTINGS_CAPACITY || base.capacity() < BASE_SETTINGS_CAPACITY) {
+      fail("Base settings allocation mismatch: size=%zu capacity=%zu", base.size(), base.capacity());
+    }
     const auto all = getSettingsList();
     const auto gestures = buildControlsTapsGesturesSettingsList(all);
     if (gpio.hasTouch()) {

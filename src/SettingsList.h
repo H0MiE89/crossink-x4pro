@@ -552,10 +552,14 @@ inline SettingInfo buildHomeButtonActionSetting(const StrId nameId, uint8_t Cros
 // #1636) so the per-entry SettingInfo cost is paid once. Read-only consumers
 // can use it directly; mutable device UI lists use getSettingsList(), which
 // returns an owned copy and can add SD-card font and dictionary options.
+inline constexpr size_t BASE_SETTINGS_CAPACITY = 102;  // 100 regular entries plus two optional tilt entries.
+
 inline const std::vector<SettingInfo>& getBaseSettingsList() {
   static const std::vector<SettingInfo> baseList = [] {
     std::vector<SettingInfo> v;
-    v.reserve(77);
+    // Reserve the maximum final size. Growing this process-lifetime vector
+    // would otherwise leave it holding roughly twice the memory it needs.
+    v.reserve(BASE_SETTINGS_CAPACITY);
     auto add = [&v](SettingInfo setting) { v.push_back(std::move(setting)); };
 
     // --- Display ---
