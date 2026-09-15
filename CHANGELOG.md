@@ -8,6 +8,7 @@
 
 ### Changed
 
+- SPI SD-card transfers are batched through the ESP32 hardware FIFO for faster reads.
 - SD-card font prewarming releases temporary lookup buffers before allocating large glyph bitmaps.
 - UC8179 grayscale images use a slightly longer waveform for stronger midtone separation.
 - EPUB image preparation writes extracted data in chunks and reuses two cached images on PSRAM readers.
