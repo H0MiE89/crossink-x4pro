@@ -303,6 +303,15 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 77
+
+Version 77 keeps the serialized layout unchanged. It was bumped because ordered
+lists now number their items, `list-style-type: none` suppresses markers, and
+`<ul>`/`<ol>` margins and padding contribute to child insets. Complete files use
+byte `77`; suspended partials use the previously unused sentinel `0xF3`.
+The related CSS rule cache uses version `18`; version `17` already occurs in
+local branch history.
+
 ### Version 75
 
 Version 75 keeps the serialized layout unchanged but excludes EPUB elements with

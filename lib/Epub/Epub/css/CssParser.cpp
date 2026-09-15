@@ -69,8 +69,8 @@ constexpr size_t MAX_SELECTOR_LENGTH = 256;
 constexpr size_t CSS_LENGTH_FIELD_COUNT = 11;
 constexpr size_t CSS_LENGTH_BYTES = sizeof(float) + sizeof(uint8_t);
 constexpr size_t CSS_FIXED_STYLE_BYTES = 5 * sizeof(uint8_t) + (CSS_LENGTH_FIELD_COUNT * CSS_LENGTH_BYTES) +
-                                         4 * sizeof(uint8_t) + 2 * sizeof(uint8_t) + sizeof(uint32_t);
-static_assert(CSS_FIXED_STYLE_BYTES == 70,
+                                         4 * sizeof(uint8_t) + 3 * sizeof(uint8_t) + sizeof(uint32_t);
+static_assert(CSS_FIXED_STYLE_BYTES == 71,
               "CssStyle cache payload changed; update read/writeCssStylePayload and bump CSS_CACHE_VERSION");
 
 // Check if character is CSS whitespace
@@ -520,6 +520,10 @@ void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style
       style.verticalAlign = CssVerticalAlign::Sub;
       style.defined.verticalAlign = 1;
     }
+  } else if (iequalsAscii(name, "list-style-type")) {
+    const std::string_view listStyleValue = stripTrailingImportant(value);
+    style.listStyleType = iequalsAscii(listStyleValue, "none") ? CssListStyleType::None : CssListStyleType::Disc;
+    style.defined.listStyleType = 1;
   } else if (iequalsAscii(name, "page-break-before") || iequalsAscii(name, "break-before")) {
     bool pageBreakBefore = false;
     if (tryInterpretCssPageBreak(value, pageBreakBefore)) {
@@ -985,7 +989,8 @@ bool CssParser::writeCssStylePayload(FsFile& file, const CssStyle& style) {
       !writeByte(static_cast<uint8_t>(style.backgroundBlack ? 1 : 0)) ||
       !writeByte(static_cast<uint8_t>(style.verticalAlign)) || !writeByte(static_cast<uint8_t>(style.direction)) ||
       !writeByte(static_cast<uint8_t>(style.pageBreakBefore ? 1 : 0)) ||
-      !writeByte(static_cast<uint8_t>(style.pageBreakAfter ? 1 : 0))) {
+      !writeByte(static_cast<uint8_t>(style.pageBreakAfter ? 1 : 0)) ||
+      !writeByte(static_cast<uint8_t>(style.listStyleType))) {
     return false;
   }
 
@@ -1009,6 +1014,7 @@ bool CssParser::writeCssStylePayload(FsFile& file, const CssStyle& style) {
   if (style.defined.backgroundBlack) definedBits |= 1 << 16;
   if (style.defined.verticalAlign) definedBits |= 1 << 17;
   if (style.defined.direction) definedBits |= 1 << 18;
+  if (style.defined.listStyleType) definedBits |= 1 << 19;
   if (style.defined.pageBreakBefore) definedBits |= 1 << 20;
   if (style.defined.pageBreakAfter) definedBits |= 1 << 21;
   if (style.defined.fontVariantCaps) definedBits |= 1 << 22;
@@ -1058,6 +1064,11 @@ bool CssParser::readCssStylePayload(FsFile& file, CssStyle& style) {
   style.pageBreakBefore = pageBreakVal != 0;
   if (file.read(&pageBreakVal, 1) != 1) return false;
   style.pageBreakAfter = pageBreakVal != 0;
+  uint8_t listStyleTypeVal = 0;
+  if (file.read(&listStyleTypeVal, 1) != 1 || listStyleTypeVal > static_cast<uint8_t>(CssListStyleType::None)) {
+    return false;
+  }
+  style.listStyleType = static_cast<CssListStyleType>(listStyleTypeVal);
 
   uint32_t definedBits = 0;
   if (file.read(&definedBits, sizeof(definedBits)) != sizeof(definedBits)) return false;
@@ -1080,6 +1091,7 @@ bool CssParser::readCssStylePayload(FsFile& file, CssStyle& style) {
   style.defined.backgroundBlack = (definedBits & 1 << 16) != 0;
   style.defined.verticalAlign = (definedBits & 1 << 17) != 0;
   style.defined.direction = (definedBits & 1 << 18) != 0;
+  style.defined.listStyleType = (definedBits & 1 << 19) != 0;
   style.defined.pageBreakBefore = (definedBits & 1 << 20) != 0;
   style.defined.pageBreakAfter = (definedBits & 1 << 21) != 0;
   style.defined.fontVariantCaps = (definedBits & 1 << 22) != 0;

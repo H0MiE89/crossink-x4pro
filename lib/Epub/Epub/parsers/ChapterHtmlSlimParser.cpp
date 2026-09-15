@@ -70,7 +70,7 @@ constexpr uint32_t MIN_FREE_HEAP_FOR_RICH_TABLE = 96U * 1024U;
 constexpr uint32_t MIN_MAX_ALLOC_FOR_RICH_TABLE = 56U * 1024U;
 
 static constexpr const char* const HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
-static constexpr const char* const BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
+static constexpr const char* const BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "ul", "ol"};
 static constexpr const char* const BOLD_TAGS[] = {"b", "strong"};
 static constexpr const char* const ITALIC_TAGS[] = {"i", "em"};
 static constexpr const char* const UNDERLINE_TAGS[] = {"u", "ins"};
@@ -2709,10 +2709,34 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->updateEffectiveInlineStyle();
 
       if (strcmp(name, "li") == 0) {
-        self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR, false, false,
-                                        self->honorsPublisherDecorations() && self->effectiveBackgroundBlack, 0,
-                                        self->visibleTextOffset);
-        self->pendingListMarkerDepth = self->depth;
+        bool markerAdded = false;
+        if (self->listContextCount_ > 0 && self->listContexts_[self->listContextCount_ - 1].styleNone) {
+          // Marker-free list item.
+        } else if (self->listContextCount_ > 0 && self->listContexts_[self->listContextCount_ - 1].ordered) {
+          auto& list = self->listContexts_[self->listContextCount_ - 1];
+          char marker[16];
+          snprintf(marker, sizeof(marker), "%u.", static_cast<unsigned>(++list.counter));
+          self->currentTextBlock->addWord(marker, EpdFontFamily::REGULAR, false, false,
+                                          self->honorsPublisherDecorations() && self->effectiveBackgroundBlack, 0,
+                                          self->visibleTextOffset);
+          markerAdded = true;
+        } else {
+          self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR, false, false,
+                                          self->honorsPublisherDecorations() && self->effectiveBackgroundBlack, 0,
+                                          self->visibleTextOffset);
+          markerAdded = true;
+        }
+        if (markerAdded) self->pendingListMarkerDepth = self->depth;
+      } else if (strcmp(name, "ul") == 0 || strcmp(name, "ol") == 0) {
+        if (self->listContextCount_ < self->listContexts_.size()) {
+          auto& list = self->listContexts_[self->listContextCount_++];
+          list = {};
+          list.ordered = strcmp(name, "ol") == 0;
+          list.styleNone = cssStyle.hasListStyleType() && cssStyle.listStyleType == CssListStyleType::None;
+          list.depth = self->depth;
+        } else {
+          LOG_ERR("EHP", "list context stack overflow");
+        }
       }
     }
   } else if (matches(name, UNDERLINE_TAGS, std::size(UNDERLINE_TAGS))) {
@@ -3354,6 +3378,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (strcmp(name, "li") == 0 && self->pendingListMarkerDepth == self->depth) {
     self->pendingListMarkerDepth = -1;
   }
+  if ((strcmp(name, "ul") == 0 || strcmp(name, "ol") == 0) && self->listContextCount_ > 0 &&
+      self->listContexts_[self->listContextCount_ - 1].depth == self->depth) {
+    self->listContextCount_--;
+  }
 
   // Leaving bold tag
   if (self->boldUntilDepth == self->depth) {
@@ -3552,6 +3580,7 @@ bool ChapterHtmlSlimParser::beginParse() {
   htmlEnded_ = false;
   parseFileOffset_ = 0;
   parseFileSize_ = 0;
+  listContextCount_ = 0;
   // Runs before the render pass opens the file, so only one reader is ever open at a time.
   if (isPreviewBuild()) {
     locatePreviewBlockStart();

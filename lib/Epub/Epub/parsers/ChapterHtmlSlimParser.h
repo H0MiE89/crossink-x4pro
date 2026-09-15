@@ -5,6 +5,7 @@
 #include <ZipFile.h>
 #include <expat.h>
 
+#include <array>
 #include <climits>
 #include <functional>
 #include <memory>
@@ -182,6 +183,14 @@ class ChapterHtmlSlimParser {
   int tableRowIndex = 0;
   int tableColIndex = 0;
   int pendingListMarkerDepth = -1;
+  struct ListContext {
+    bool ordered = false;
+    bool styleNone = false;
+    uint32_t counter = 0;
+    int depth = 0;
+  };
+  std::array<ListContext, MAX_BLOCK_STYLE_DEPTH> listContexts_{};
+  size_t listContextCount_ = 0;
   bool currentTableCellIsHeader = false;
   uint8_t currentTableCellColSpan = 1;
   uint32_t currentTableCellVisibleOffset = 0;

@@ -132,4 +132,49 @@ TEST_F(ChapterHtmlSlimParserTest, HiddenIdsDoNotBecomeAnchorsOrTocPageBreaks) {
   }
 }
 
+TEST_F(ChapterHtmlSlimParserTest, NumbersOrderedListsAndRestartsNestedCounters) {
+  ChapterHtmlSlimParser::startElement(&parser, "ol", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->words[0], "1.");
+
+  ChapterHtmlSlimParser::startElement(&parser, "ol", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->words[0], "1.");
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  ChapterHtmlSlimParser::endElement(&parser, "ol");
+
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->words[0], "2.");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, SupportsMarkerFreeListsAndContainerInsets) {
+  const XML_Char* listAttributes[] = {"style", "list-style-type: none; margin-left: 10px; padding-left: 5px", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "ul", listAttributes);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+
+  EXPECT_TRUE(parser.currentTextBlock->isEmpty());
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().leftInset(), 15);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, HiddenNestedListDoesNotResetOuterCounter) {
+  ChapterHtmlSlimParser::startElement(&parser, "ol", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  EXPECT_EQ(parser.currentTextBlock->words[0], "1.");
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+
+  const XML_Char* hidden[] = {"hidden", "", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "ul", hidden);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  ChapterHtmlSlimParser::endElement(&parser, "ul");
+
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->words[0], "2.");
+}
+
 }  // namespace

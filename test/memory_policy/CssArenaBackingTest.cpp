@@ -14,7 +14,8 @@ struct CssArenaBackingTest : testing::Test {
   }
   void createCache() {
     const std::string text =
-        "p { text-align: center; margin-top: 12px; } .em { font-weight: bold; } div p { font-style: italic; }";
+        "p { text-align: center; margin-top: 12px; } .em { font-weight: bold; } div p { font-style: italic; } "
+        ".plain { list-style-type: none; }";
     Storage.put("input.css", {text.begin(), text.end()});
     FsFile file;
     ASSERT_TRUE(Storage.openFileForRead("test", "input.css", file));
@@ -25,7 +26,7 @@ struct CssArenaBackingTest : testing::Test {
   }
   void checkStyle(CssParser& css) {
     EXPECT_FALSE(css.empty());
-    EXPECT_EQ(css.ruleCount(), 2u);
+    EXPECT_EQ(css.ruleCount(), 3u);
     const auto style = css.resolveStyle("p", "em", {{0, "div", ""}});
     EXPECT_TRUE(style.hasFontWeight());
     EXPECT_TRUE(style.hasFontStyle());
@@ -35,6 +36,9 @@ struct CssArenaBackingTest : testing::Test {
     EXPECT_EQ(style.fontWeight, CssFontWeight::Bold);
     EXPECT_EQ(style.fontStyle, CssFontStyle::Italic);
     EXPECT_EQ(style.textAlign, CssTextAlign::Center);
+    const auto listStyle = css.resolveStyle("ol", "plain");
+    EXPECT_TRUE(listStyle.hasListStyleType());
+    EXPECT_EQ(listStyle.listStyleType, CssListStyleType::None);
   }
 };
 TEST_F(CssArenaBackingTest, IdenticalStylesForDefaultExternalAndDiskFallback) {
@@ -95,7 +99,7 @@ TEST_F(CssArenaBackingTest, LargeStreamPreservesHiddenRulesThroughCache) {
   EXPECT_EQ(css.resolveStyle("div", "modal").display, CssDisplay::None);
 }
 
-TEST_F(CssArenaBackingTest, PreviousEmptyCacheVersionIsInvalidated) {
+TEST_F(CssArenaBackingTest, PreviousCacheVersionIsInvalidated) {
   CssParser css("book");
   ASSERT_TRUE(css.saveToCache());
   FsFile file;
@@ -104,7 +108,7 @@ TEST_F(CssArenaBackingTest, PreviousEmptyCacheVersionIsInvalidated) {
   std::vector<uint8_t> bytes(file.size());
   ASSERT_EQ(file.read(bytes.data(), bytes.size()), static_cast<int>(bytes.size()));
   file.close();
-  bytes[4] = 15;
+  bytes[4] = 16;
   Storage.put("book/css_rules.cache", bytes);
   EXPECT_EQ(css.inspectCache(), CssParser::CacheStatus::Invalid);
 }
