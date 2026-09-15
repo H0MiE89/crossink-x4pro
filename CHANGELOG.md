@@ -8,6 +8,7 @@
 
 ### Changed
 
+- PNG, XTC, and image-dithering scratch buffers use fewer heap allocations to reduce fragmentation.
 - The shared settings catalog keeps its initial allocation instead of retaining unused vector capacity.
 - SPI SD-card transfers are batched through the ESP32 hardware FIFO for faster reads.
 - SD-card font prewarming releases temporary lookup buffers before allocating large glyph bitmaps.
