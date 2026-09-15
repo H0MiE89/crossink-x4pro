@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- EPUB chapter layout releases rebuildable font caches first, reducing low-memory failures on X3/X4.
 - KOReader Sync uploads retain exact text-node positions, including zero offsets and UTF-8 text.
 - Saved clipping highlights now retain Focus Reading's custom-font glyphs instead of showing replacement characters.
 - EPUB dictionary lookup can select an individual part of a hyphenated word.

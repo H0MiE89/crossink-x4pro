@@ -1,6 +1,7 @@
 #include "Section.h"
 
 #include <Arduino.h>
+#include <FontCacheManager.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <InflateStream.h>
@@ -759,6 +760,12 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const SectionBuildOptions
   if (build_) {
     LOG_ERR("SCT", "startBuild called while a build is already active");
     return false;
+  }
+
+  // Reclaim rebuildable font data before CSS and layout allocate their
+  // working buffers. Font objects remain registered and reload on demand.
+  if (auto* fontCache = renderer.getFontCacheManager()) {
+    fontCache->releaseSdFontCaches();
   }
 
   const auto localPath = epub->getSpineItem(spineIndex).href;
