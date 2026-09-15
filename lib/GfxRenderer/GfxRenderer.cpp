@@ -3204,12 +3204,33 @@ bool GfxRenderer::supportsAbsoluteGrayscale() const {
 #endif
 }
 
+bool GfxRenderer::supportsDirectGrayscale() const {
+#ifdef SIMULATOR
+  return false;
+#else
+  return display.grayscaleCapabilities(HalDisplay::GrayscaleMode::Direct).supported();
+#endif
+}
+
 bool GfxRenderer::displayAbsoluteGrayscaleBase(HalDisplay::RefreshMode fallback) const {
   absoluteGrayPlanes = false;
 #ifdef SIMULATOR
   return false;
 #else
   if (!display.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute, fallback, fadingFix)) return false;
+  absoluteGrayPlanes = true;
+  return true;
+#endif
+}
+
+bool GfxRenderer::displayDirectGrayscaleBase(HalDisplay::RefreshMode fallback) const {
+  absoluteGrayPlanes = false;
+#ifdef SIMULATOR
+  return false;
+#else
+  if (!display.displayGrayscaleBase(HalDisplay::GrayscaleMode::Direct, fallback, fadingFix)) return false;
+  // Direct uploads complete planes, so grayPlanePixel() must use the absolute
+  // encoding rather than overlay masks.
   absoluteGrayPlanes = true;
   return true;
 #endif

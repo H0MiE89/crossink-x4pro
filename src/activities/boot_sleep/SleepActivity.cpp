@@ -716,9 +716,15 @@ bool SleepActivity::renderBitmapSleepScreen(Bitmap& bitmap) const {
     return true;
   }
 
+  // Prefer the Direct waveform where the panel implements it: it folds the B/W
+  // base into the grayscale pass rather than pushing a separate base refresh
+  // first. Keep `absolute` on the Absolute probe alone so it matches what the
+  // callers pass to SleepCoverAssets and the Bitmap dither/level mode; Direct
+  // is only ever an upgrade on top of it, never a substitute.
   const bool absolute = renderer.supportsAbsoluteGrayscale();
+  const bool direct = absolute && renderer.supportsDirectGrayscale();
   if (absolute) {
-    if (!renderer.displayAbsoluteGrayscaleBase()) return false;
+    if (!(direct ? renderer.displayDirectGrayscaleBase() : renderer.displayAbsoluteGrayscaleBase())) return false;
   } else {
     renderer.displayGrayscaleBase(HalDisplay::HALF_REFRESH);
   }

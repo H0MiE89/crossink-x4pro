@@ -12,6 +12,7 @@
 - EPUB image preparation writes extracted data in chunks and reuses two cached images on PSRAM readers.
 - Web portal pages reuse browser-cached content after checking for firmware updates.
 - Rapid queued EPUB page turns defer text anti-aliasing and image loading until the final page, making intermediate turns faster.
+- Grayscale sleep screen images use the panel's direct grayscale waveform where supported, which folds the base frame into the grayscale pass instead of refreshing the screen separately first.
 
 ### Fixed
 
