@@ -34,6 +34,7 @@
 - Image dithering reports low-memory failures instead of aborting during buffer allocation.
 - The debugging monitor plots CrossInk heap and PSRAM logs separately; ZIP failures identify the affected EPUB entry.
 - Many progressive JPEG images that store brightness and color in separate scans now render instead of appearing blank.
+- PNG sleep overlays preserve four evenly spaced grayscale levels on supported displays.
 
 - Exiting Calibre Wireless on X4 now returns Home with one clean screen refresh instead of repeated blank flashes.
 - Manage Fonts no longer crashes after Wi-Fi connects on ESP32-S3 readers.

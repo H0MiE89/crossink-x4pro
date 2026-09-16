@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "lib/Epub/Epub/converters/DitherUtils.h"
 #include "lib/GfxRenderer/BitmapHelpers.h"
 
 namespace {
@@ -76,4 +77,15 @@ TEST(AbsoluteGrayscale, ImageQuantizersRetainFourEvenLevels) {
   }
   AtkinsonDitherer overlay(1);
   EXPECT_EQ(overlay.processPixel(85, 0), 2);
+}
+
+TEST(AbsoluteGrayscale, NonDitheredPngQuantizationUsesFourEvenLevels) {
+  EXPECT_EQ(quantizeGrayTo4Level(0), 0);
+  EXPECT_EQ(quantizeGrayTo4Level(63), 0);
+  EXPECT_EQ(quantizeGrayTo4Level(64), 1);
+  EXPECT_EQ(quantizeGrayTo4Level(127), 1);
+  EXPECT_EQ(quantizeGrayTo4Level(128), 2);
+  EXPECT_EQ(quantizeGrayTo4Level(191), 2);
+  EXPECT_EQ(quantizeGrayTo4Level(192), 3);
+  EXPECT_EQ(quantizeGrayTo4Level(255), 3);
 }
