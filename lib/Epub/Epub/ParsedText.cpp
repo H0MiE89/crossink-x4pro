@@ -782,12 +782,6 @@ bool ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     return false;
   }
 
-  ScopedCleanup logLayoutPools{[&layoutArena] {
-    LOG_DBG("PTX", "Layout slabs: internal=%u psram=%u psramReserve=%u",
-            unsigned(layoutArena.capacityInPool(MemoryPool::Internal)),
-            unsigned(layoutArena.capacityInPool(MemoryPool::Psram)), unsigned(MemoryBudget::EPUB_PSRAM_RESERVE));
-  }};
-
   if (!blockStyle.directionDefined && hasRtlWord) {
     const size_t wordsToScan = std::min(words.size(), RTL_PARAGRAPH_PROBE_WORDS);
     for (size_t i = 0; i < wordsToScan; ++i) {

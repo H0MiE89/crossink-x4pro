@@ -1687,6 +1687,13 @@ std::optional<uint16_t> Section::getPageForVisibleTextOffset(const uint32_t offs
     // that the committed cache already knows how to resolve.
   }
 
+  // A from-scratch build (no partial ever committed for this cache key) has nothing on
+  // disk yet: an offset beyond the live prefix above just hasn't been laid out, and
+  // openFileForRead() would fail every call until the build catches up or finishes.
+  if (build_ && !partial_) {
+    return std::nullopt;
+  }
+
   FsFile f;
   if (!Storage.openFileForRead("SCT", filePath, f)) return std::nullopt;
   const uint32_t fileSize = f.size();
