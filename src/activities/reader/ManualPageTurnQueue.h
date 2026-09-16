@@ -64,6 +64,16 @@ class ManualPageTurnQueue {
 
   bool hasDispatched() const { return hasDispatchedTurn; }
 
+  bool dispatchedIsForward() const { return hasDispatchedTurn && dispatchedTurn.isForward; }
+
+  bool dispatchedDirectionMatches(const bool isForward) const {
+    return hasDispatchedTurn && dispatchedTurn.isForward == isForward;
+  }
+
+  bool dispatchedDirectionOpposes(const bool isForward) const {
+    return hasDispatchedTurn && dispatchedTurn.isForward != isForward;
+  }
+
   size_t size() const { return count.load(std::memory_order_acquire); }
 
  private:
