@@ -44,9 +44,9 @@
 - The debugging monitor plots CrossInk heap and PSRAM logs separately; ZIP failures identify the affected EPUB entry.
 - Many progressive JPEG images that store brightness and color in separate scans now render instead of appearing blank.
 - PNG sleep overlays preserve four evenly spaced grayscale levels on supported displays.
-
 - Exiting Calibre Wireless on X4 now returns Home with one clean screen refresh instead of repeated blank flashes.
 - Manage Fonts no longer crashes after Wi-Fi connects on ESP32-S3 readers.
+- Editing font settings from the top drawer's global settings within a book now applies those changes when no per-book font settings exist.
 
 ## [v1.5.1] - 2026-09-10
 

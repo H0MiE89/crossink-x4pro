@@ -2064,7 +2064,18 @@ void EpubReaderActivity::endGlobalSettingsEdit() {
   // book, otherwise the stale snapshot is written back on a later save or
   // when the reader exits.
   captureReaderSettings(globalReaderSettingsBeforeBook);
-  applyReaderSettings(suspendedBookReaderSettings);
+  // Only fields this book actually owns need the pre-edit snapshot restored,
+  // so its own look survives an unrelated global edit. A book that just
+  // inherits the global font has nothing of its own to protect there, and
+  // restoring the whole snapshot would revert the edit the user just made
+  // for the rest of this reading session. Render mode is tracked separately
+  // (a build fallback can set it without hasCustomReaderSettings), so it is
+  // restored on its own whenever this book owns it.
+  if (bookHasCustomReaderSettings) {
+    applyReaderSettings(suspendedBookReaderSettings);
+  } else if (bookHasRenderModeOverride) {
+    SETTINGS.epubRenderMode = normalizeRenderModeRaw(suspendedBookReaderSettings.epubRenderMode);
+  }
   bookReaderSettingsSuspendedForGlobalEdit = false;
 }
 
