@@ -47,6 +47,7 @@
 - Exiting Calibre Wireless on X4 now returns Home with one clean screen refresh instead of repeated blank flashes.
 - Manage Fonts no longer crashes after Wi-Fi connects on ESP32-S3 readers.
 - Editing font settings from the top drawer's global settings within a book now applies those changes when no per-book font settings exist.
+- Per-book reading stats now write to a backup file first.
 
 ## [v1.5.1] - 2026-09-10
 

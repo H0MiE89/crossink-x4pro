@@ -1,5 +1,6 @@
 #include <HalStorage.h>
 #include <gtest/gtest.h>
+
 #include <algorithm>
 #include <array>
 #include <limits>
@@ -8,7 +9,7 @@ namespace {
 size_t bulkCalls, byteCalls, accepted;
 const void* lastBuffer;
 size_t lastSize;
-}
+}  // namespace
 
 // Exercise the real HalFile header/virtual dispatch. Replace only its storage
 // backend, so this fails if Print& silently falls back to byte-wise writes.

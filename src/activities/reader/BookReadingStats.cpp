@@ -241,11 +241,9 @@ void BookReadingStats::formatDuration(uint32_t seconds, char* buf, size_t len) {
 
 void BookReadingStats::save(const std::string& cachePath) const {
   const std::string statsFileName = statsFileNameForVersion(STATS_FILE_VERSION);
-  FsFile f;
-  if (!Storage.openFileForWrite("STATS", cachePath + "/" + statsFileName, f)) {
-    LOG_ERR("STATS", "Could not write %s", statsFileName.c_str());
-    return;
-  }
+  const std::string statsPath = cachePath + "/" + statsFileName;
+  const std::string tmpPath = statsPath + ".tmp";
+
   uint8_t data[STATS_FILE_SIZE];
   memset(data, 0, sizeof(data));
   data[0] = STATS_FILE_VERSION;
@@ -269,8 +267,55 @@ void BookReadingStats::save(const std::string& cachePath) const {
     writeLe32(data, 41 + static_cast<int>(i) * 4, dayOfWeekSeconds[i]);
   }
   writeLe32(data, 69, estimatedTimeLeftSeconds);
-  f.write(data, STATS_FILE_SIZE);
-  f.close();
+
+  // Write to a temp file and rename into place so a save interrupted mid-write
+  // (silent restart, SD contention, power loss) can never leave stats_v5.bin
+  // truncated; load() treats any short read as "no stats" and would otherwise
+  // silently wipe the book's history.
+  if (Storage.exists(tmpPath.c_str()) && !Storage.remove(tmpPath.c_str())) {
+    LOG_ERR("STATS", "Could not remove stale stats temp file: %s", tmpPath.c_str());
+    return;
+  }
+
+  FsFile f;
+  if (!Storage.openFileForWrite("STATS", tmpPath, f)) {
+    LOG_ERR("STATS", "Could not write %s", tmpPath.c_str());
+    return;
+  }
+
+  const size_t written = f.write(data, STATS_FILE_SIZE);
+  if (written != STATS_FILE_SIZE) {
+    LOG_ERR("STATS", "Short write for %s: %u/%u bytes", tmpPath.c_str(), static_cast<unsigned>(written),
+            static_cast<unsigned>(STATS_FILE_SIZE));
+    f.close();
+    Storage.remove(tmpPath.c_str());
+    return;
+  }
+
+  f.flush();
+  if (!f.sync()) {
+    LOG_ERR("STATS", "Failed to sync %s", tmpPath.c_str());
+    f.close();
+    Storage.remove(tmpPath.c_str());
+    return;
+  }
+
+  if (!f.close()) {
+    LOG_ERR("STATS", "Failed to close %s", tmpPath.c_str());
+    Storage.remove(tmpPath.c_str());
+    return;
+  }
+
+  if (Storage.exists(statsPath.c_str()) && !Storage.remove(statsPath.c_str())) {
+    LOG_ERR("STATS", "Could not replace %s", statsFileName.c_str());
+    Storage.remove(tmpPath.c_str());
+    return;
+  }
+
+  if (!Storage.rename(tmpPath.c_str(), statsPath.c_str())) {
+    LOG_ERR("STATS", "Could not publish %s", statsFileName.c_str());
+    Storage.remove(tmpPath.c_str());
+  }
 }
 
 bool BookReadingStats::remove(const std::string& cachePath) {
