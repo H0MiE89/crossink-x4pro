@@ -10,6 +10,7 @@
 #include <MemoryBudget.h>
 #include <Serialization.h>
 
+#include "Epub/ReferencePageNavigation.h"
 #include "Epub/css/CssParser.h"
 #include "Page.h"
 #include "SectionPageIndexSerialization.h"
@@ -592,9 +593,9 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
       *epub, parsePath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, effectiveFocusReadingEnabled,
       effectiveGuideReadingEnabled, wordSpacing,
-      [this, &pageIndex, &pageCompletionFailed, layoutAbortedForLowMemory](
+      [this, &pageIndex, &pageCompletionFailed, layoutAbortedForLowMemory, buildOptions](
           std::unique_ptr<Page> page, const uint16_t paragraphIndex, const uint16_t listItemIndex,
-          const uint32_t visibleTextOffset) {
+          const uint32_t visibleTextOffset, const uint32_t referenceTextOffset) {
         if (pageCompletionFailed) {
           return;
         }
@@ -611,6 +612,10 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
           pageCompletionFailed = true;
           return;
         }
+        if (buildOptions.referenceUnitsAreCharacters && buildOptions.resolvedReferencePage &&
+            referenceTextOffset <= buildOptions.referenceUnitOffset) {
+          *buildOptions.resolvedReferencePage = static_cast<uint16_t>(pageIndex.size());
+        }
         const uint32_t fileOffset = this->onPageComplete(std::move(page));
         if (fileOffset == 0) {
           pageCompletionFailed = true;
@@ -619,7 +624,8 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
         pageIndex.appendPrepared({fileOffset, paragraphIndex, listItemIndex, visibleTextOffset});
       },
       embeddedStyle, contentBase, imageBasePath, imageRendering, std::move(tocAnchors), popupFn, cssParser, renderMode,
-      buildOptions.isPreview() ? std::string(buildOptions.previewAnchor) : std::string{}, buildOptions.previewMaxPages);
+      buildOptions.isPreview() ? std::string(buildOptions.previewAnchor) : std::string{}, buildOptions.previewMaxPages,
+      buildOptions.referenceUnitsAreCharacters);
   Hyphenator::setPreferredLanguage(epub->getLanguage());
   bool cancelled = false;
   bool success = false;
@@ -686,6 +692,12 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
       cssParser->clear();
     }
     return false;
+  }
+
+  if (buildOptions.resolvedReferencePage && buildOptions.referenceUnitCount > 0 &&
+      !buildOptions.referenceUnitsAreCharacters) {
+    *buildOptions.resolvedReferencePage = EpubNavigation::resolveReferenceTargetToRenderedPage(
+        buildOptions.referenceUnitOffset, buildOptions.referenceUnitCount, visitor.getVisibleTextLength(), pageIndex);
   }
 
   const auto& anchors = visitor.getAnchors();
@@ -911,7 +923,7 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const SectionBuildOptions
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, focusReadingEnabled, guideReadingEnabled,
       wordSpacing,
       [this, ctxPtr](std::unique_ptr<Page> page, const uint16_t paragraphIndex, const uint16_t listItemIndex,
-                     const uint32_t visibleTextOffset) {
+                     const uint32_t visibleTextOffset, const uint32_t) {
         if (ctxPtr->pageCompletionFailed) {
           return;
         }
@@ -937,7 +949,7 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const SectionBuildOptions
       },
       embeddedStyle, ctxPtr->contentBase, ctxPtr->imageBasePath, imageRendering, std::move(tocAnchors), popupFn,
       ctxPtr->cssParser, renderMode, buildOptions.isPreview() ? std::string(buildOptions.previewAnchor) : std::string{},
-      buildOptions.previewMaxPages);
+      buildOptions.previewMaxPages, false);
   if (!ctx->parser) {
     LOG_ERR("SCT", "Failed to allocate section parser");
     lastLayoutAbortedForLowMemory_ = true;

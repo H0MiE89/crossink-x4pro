@@ -2,9 +2,11 @@
 
 ### Added
 
+- EPUBs with stable page numbers can jump directly to a specific stable page from the reader menu.
 - Hidden folders can be created using the web file manager now when prefixed with a dot.
 - Choose whole numbers, one decimal, or two decimals for the book progress percentage in status bar settings.
 - Two-finger Screen Rotation can be turned off in Settings > Controls > Taps & Gestures on multi-touch devices.
+- Go to % and Go to Stable Page use a numeric keypad for typing an exact destination, including decimal percentages. Touch devices use the keypad exclusively; button-only devices keep the slider by default and hold Confirm/Select to switch to the keypad.
 
 ### Changed
 

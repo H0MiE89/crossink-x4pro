@@ -107,6 +107,48 @@ TEST_F(ChapterHtmlSlimParserTest, HiddenElementsSuppressContentAndResumeVisibleT
   EXPECT_EQ(parser.currentTextBlock->words[0], "Visible");
 }
 
+TEST_F(ChapterHtmlSlimParserTest, StablePageOffsetsCollapseClusteredWhitespace) {
+  parser.trackReferenceCharacters = true;
+  parser.currentTextBlock = std::make_unique<ParsedText>(false, false, false, false, false, 0, BlockStyle{}, true);
+
+  constexpr char text[] = "  Alpha     Beta ";
+  ChapterHtmlSlimParser::characterData(&parser, text, sizeof(text) - 1);
+  parser.flushPartWordBuffer();
+
+  ASSERT_EQ(parser.currentTextBlock->wordReferenceOffsets.size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->wordReferenceOffsets[0], 0u);
+  EXPECT_EQ(parser.currentTextBlock->wordReferenceOffsets[1], 6u);
+  EXPECT_EQ(parser.referenceTextOffset, 10u);
+  EXPECT_TRUE(parser.referenceWhitespacePending);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, StablePageOffsetsResumeAfterNestedExcludedMarkup) {
+  parser.trackReferenceCharacters = true;
+  parser.currentTextBlock = std::make_unique<ParsedText>(false, false, false, false, false, 0, BlockStyle{}, true);
+
+  ChapterHtmlSlimParser::startElement(&parser, "html", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "head", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "style", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "p { display: block; }", 21);
+  ChapterHtmlSlimParser::endElement(&parser, "style");
+  ChapterHtmlSlimParser::endElement(&parser, "head");
+  ChapterHtmlSlimParser::startElement(&parser, "body", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "svg", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "metadata", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "not book text", 13);
+  ChapterHtmlSlimParser::endElement(&parser, "metadata");
+  ChapterHtmlSlimParser::endElement(&parser, "svg");
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Visible text ", 13);
+  parser.flushPartWordBuffer();
+
+  EXPECT_EQ(parser.referenceExcludedUntilDepth, INT_MAX);
+  EXPECT_EQ(parser.referenceTextOffset, 12u);
+  ASSERT_EQ(parser.currentTextBlock->wordReferenceOffsets.size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->wordReferenceOffsets[0], 0u);
+  EXPECT_EQ(parser.currentTextBlock->wordReferenceOffsets[1], 8u);
+}
+
 TEST_F(ChapterHtmlSlimParserTest, HiddenImageDoesNotReadImageDataWithoutCss) {
   parser.cssParser = nullptr;
   const XML_Char* attributes[] = {"hidden", "", "src", "missing.jpg", nullptr};
