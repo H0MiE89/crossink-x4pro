@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "DeviceCapabilities.h"
 #include "MappedInputManager.h"
 #include "SettingsList.h"
 #include "activities/ActivityManager.h"
@@ -279,12 +280,45 @@ class SimulatorSmokeTest {
     const bool hasSideButtonChord =
         std::any_of(sideButtonSettings.begin(), sideButtonSettings.end(),
                     [](const SettingInfo& setting) { return setting.nameId == StrId::STR_SIDE_BUTTON_CHORD; });
-    if (hasSideButtonChord != gpio.hasTouch()) {
-      fail("Side-button chord availability does not match touch capability");
+    if (hasSideButtonChord != deviceSupportsSideButtonChord(gpio)) {
+      fail("Side-button chord availability does not match device controls");
     }
 
-    if (QuickActionsActivityTest::isTriggerAvailable(QuickActions::Trigger::UpDown) != gpio.hasTouch()) {
-      fail("Quick Actions Up + Down availability does not match touch capability");
+    if (QuickActionsActivityTest::isTriggerAvailable(QuickActions::Trigger::UpDown) !=
+        deviceSupportsSideButtonChord(gpio)) {
+      fail("Quick Actions Up + Down availability does not match device controls");
+    }
+
+    const auto chordSetting = std::find_if(allSettings.begin(), allSettings.end(), [](const SettingInfo& setting) {
+      return settingKeyIs(setting, "powerChordAction");
+    });
+    if (chordSetting == allSettings.end()) fail("Power chord setting is missing");
+    if (std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_SLEEP) != chordSetting->enumRawValues.end()) {
+      fail("Sleep is still offered for a chord that cannot wake the device");
+    }
+    if (std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_QUICK_ACTIONS) == chordSetting->enumRawValues.end()) {
+      fail("Quick Actions is missing from the Power + Up chord setting");
+    }
+    if (!gpio.hasHomeKey() &&
+        std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_TOGGLE_HOME_BUTTON) != chordSetting->enumRawValues.end()) {
+      fail("Toggle Home Button is still offered without a Home key");
+    }
+    if (std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_PREVIOUS_PAGE) == chordSetting->enumRawValues.end()) {
+      fail("Previous Page was removed by an unrelated power-button action ID");
+    }
+    if (!gpio.hasTouch() &&
+        std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_TOGGLE_TOUCHSCREEN) != chordSetting->enumRawValues.end()) {
+      fail("Toggle Touchscreen is still offered without touch hardware");
+    }
+    if (!Frontlight.present() &&
+        std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
+                  CrossPointSettings::CHORD_TOGGLE_FRONTLIGHT) != chordSetting->enumRawValues.end()) {
+      fail("Toggle Frontlight is still offered without a frontlight");
     }
   }
 

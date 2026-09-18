@@ -8,6 +8,7 @@
 
 #include "AppCapabilities.h"
 #include "CrossPointSettings.h"
+#include "DeviceCapabilities.h"
 #include "QuickActions.h"
 
 namespace {
@@ -20,7 +21,7 @@ constexpr StrId triggerLabels[] = {
 std::vector<QuickActions::Trigger> availableTriggers() {
   std::vector<QuickActions::Trigger> triggers = {QuickActions::Trigger::None, QuickActions::Trigger::ShortPower,
                                                  QuickActions::Trigger::LongPower, QuickActions::Trigger::PowerUp};
-  if (gpio.hasTouch()) {
+  if (deviceSupportsSideButtonChord(gpio)) {
     triggers.push_back(QuickActions::Trigger::UpDown);
   }
   if (gpio.hasHomeKey()) {

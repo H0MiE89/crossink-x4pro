@@ -50,6 +50,10 @@
 - Manage Fonts no longer crashes after Wi-Fi connects on ESP32-S3 readers.
 - Editing font settings from the top drawer's global settings within a book now applies those changes when no per-book font settings exist.
 - Per-book reading stats now write to a backup file first.
+- Paragraph-alignment previews remain available on text-heavy pages instead of disappearing when the preview sample is full.
+- Quick Actions assignments stay visible in button-combo settings, and X4 Classic can use the Up + Down shortcut.
+- Sync Progress from the reader menu opens KOReader setup when credentials have not been configured.
+- Button-combo settings no longer offer Sleep because the same combo cannot wake the reader.
 
 ## [v1.5.1] - 2026-09-10
 

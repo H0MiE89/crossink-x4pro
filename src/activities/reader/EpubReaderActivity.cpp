@@ -3862,7 +3862,14 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::SYNC: {
-      if (KOREADER_STORE.hasCredentials()) {
+      if (!KOREADER_STORE.hasCredentials()) {
+        pauseReadingPaceTimer("koreader_settings");
+        startActivityForResult(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInput),
+                               [this](const ActivityResult&) {
+                                 resumeReadingPaceTimer("koreader_settings_return");
+                                 saveGlobalSettingsPreservingBookOverrides();
+                               });
+      } else {
         const int currentPage = section ? section->currentPage : nextPageNumber;
         const int totalPages = section ? section->estimatedTotalPages() : cachedChapterTotalPageCount;
 
@@ -4661,16 +4668,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       requestUpdate();
       break;
     case CrossPointSettings::LONG_MENU_SYNC_PROGRESS:
-      if (KOREADER_STORE.hasCredentials()) {
-        onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
-      } else {
-        pauseReadingPaceTimer("koreader_settings");
-        startActivityForResult(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInput),
-                               [this](const ActivityResult&) {
-                                 resumeReadingPaceTimer("koreader_settings_return");
-                                 saveGlobalSettingsPreservingBookOverrides();
-                               });
-      }
+      onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
       break;
     case CrossPointSettings::LONG_MENU_MARK_FINISHED: {
       const bool newCompleted = !stats.isCompleted;
@@ -4933,7 +4931,7 @@ void EpubReaderActivity::openQuickActionsPopup() {
                                    /*dictionaryLookupFramebufferContainsPage=*/false);
           return;
         }
-        if (action == CrossPointSettings::SHORT_PWRBTN::SYNC_PROGRESS && KOREADER_STORE.hasCredentials()) {
+        if (action == CrossPointSettings::SHORT_PWRBTN::SYNC_PROGRESS) {
           onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
           return;
         }

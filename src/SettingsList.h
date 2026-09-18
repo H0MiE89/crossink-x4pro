@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "DeviceCapabilities.h"
 #include "KOReaderCredentialStore.h"
 #include "QuickActions.h"
 #include "activities/settings/SettingsActivity.h"
@@ -370,8 +371,10 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
       switch (action) {
         case Action::IGNORE:
           return Chord::CHORD_DISABLED;
+        // Deep sleep wakes from the Power GPIO alone. A chord cannot be used
+        // as the matching wake gesture, so do not offer a misleading action.
         case Action::SLEEP:
-          return Chord::CHORD_SLEEP;
+          return SHORTCUT_OPTION_UNAVAILABLE;
         case Action::PAGE_TURN:
           return Chord::CHORD_PAGE_TURN;
         case Action::PREVIOUS_PAGE:
@@ -1031,9 +1034,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                            }),
             v.end());
     for (auto& setting : v) {
-      if (setting.nameId == StrId::STR_SHORT_PWR_BTN || settingKeyIs(setting, "longPwrBtn") ||
-          settingKeyIs(setting, "powerChordAction") || settingKeyIs(setting, "sideButtonChordAction")) {
+      if (setting.nameId == StrId::STR_SHORT_PWR_BTN || settingKeyIs(setting, "longPwrBtn")) {
         removeEnumRawValue(setting, CrossPointSettings::TOGGLE_HOME_BUTTON_IN_READER);
+      } else if (settingKeyIs(setting, "powerChordAction") || settingKeyIs(setting, "sideButtonChordAction")) {
+        removeEnumRawValue(setting, shortcutRawValue(ShortcutOptionCatalog::ButtonChord,
+                                                     CrossPointSettings::TOGGLE_HOME_BUTTON_IN_READER));
       }
     }
   }
@@ -1043,8 +1048,15 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
           !settingKeyIs(setting, "powerChordAction") && !settingKeyIs(setting, "sideButtonChordAction")) {
         continue;
       }
-      if (!Frontlight.present()) removeEnumRawValue(setting, CrossPointSettings::TOGGLE_FRONTLIGHT);
-      if (!gpio.hasTouch()) removeEnumRawValue(setting, CrossPointSettings::TOGGLE_TOUCHSCREEN);
+      const auto catalog = settingKeyIs(setting, "powerChordAction") || settingKeyIs(setting, "sideButtonChordAction")
+                               ? ShortcutOptionCatalog::ButtonChord
+                               : ShortcutOptionCatalog::PowerButton;
+      if (!Frontlight.present()) {
+        removeEnumRawValue(setting, shortcutRawValue(catalog, CrossPointSettings::TOGGLE_FRONTLIGHT));
+      }
+      if (!gpio.hasTouch()) {
+        removeEnumRawValue(setting, shortcutRawValue(catalog, CrossPointSettings::TOGGLE_TOUCHSCREEN));
+      }
     }
   }
   if (!Frontlight.present()) {
@@ -1260,11 +1272,11 @@ inline std::vector<SettingInfo> buildControlsFrontButtonSettingsList(const std::
 
 inline std::vector<SettingInfo> buildControlsSideButtonSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
-  settings.reserve(3 + (gpio.hasTouch() ? 1u : 0u));
+  settings.reserve(3 + (deviceSupportsSideButtonChord(gpio) ? 1u : 0u));
   addSettingByName(settings, allSettings, StrId::STR_SIDE_BTN_LAYOUT);
   addSettingByKey(settings, allSettings, "sideButtonOrientationAware");
   addSettingByKey(settings, allSettings, "sideButtonLongPress");
-  if (gpio.hasTouch()) {
+  if (deviceSupportsSideButtonChord(gpio)) {
     addSettingByName(settings, allSettings, StrId::STR_SIDE_BUTTON_CHORD);
   }
   return settings;
