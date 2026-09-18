@@ -12,7 +12,6 @@
 #include "MappedInputManager.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
-#include "components/icons/keyboardIcons.h"
 #include "fontIds.h"
 #include "util/FrontlightSchedule.h"
 
@@ -313,7 +312,6 @@ void FrontlightTimePickerActivity::render(RenderLock&&) {
     fui::KeyboardProps props;
     props.layout = &keyboardLayout;
     props.keyAction = kKeyboardAction;
-    props.deleteIcon = fui::bitmapFromIcon(icon_backspace_28);
     props.okLabel = tr(STR_OK_BUTTON);
     props.shiftLabel = tr(STR_KEY_SHIFT);
     props.modeLabel = tr(STR_KEY_MODE_SYMBOLS);

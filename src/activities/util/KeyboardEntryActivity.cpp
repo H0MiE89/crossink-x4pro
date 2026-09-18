@@ -13,7 +13,6 @@
 #include "MappedInputManager.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
-#include "components/icons/keyboardIcons.h"
 #include "fontIds.h"
 
 namespace fui = freeink::ui;
@@ -996,7 +995,6 @@ void KeyboardEntryActivity::render(RenderLock&&) {
   const fui::KeyboardLayout& layout = currentLayout();
   props.layout = &layout;
   props.keyAction = ACTION_KEY;  // one action id; loop() dispatches on key value
-  props.deleteIcon = fui::bitmapFromIcon(icon_backspace_28);
   props.okLabel = tr(STR_OK_BUTTON);
   props.shiftLabel = tr(STR_KEY_SHIFT);
   // Match the label to the layer the mode key leads back from: the symbols
