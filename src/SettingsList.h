@@ -769,6 +769,13 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
                             "tapToHideStatusBar", StrId::STR_CAT_CONTROLS));
 
     // --- System ---
+    // The bridge address and its shared secret. The token is obfuscated on the
+    // card like other passwords; it is a LAN credential, not a cloud one.
+    add(SettingInfo::String(StrId::STR_HUB_URL, SETTINGS.hubUrl, sizeof(SETTINGS.hubUrl), "hubUrl",
+                            StrId::STR_CAT_SYSTEM));
+    add(SettingInfo::String(StrId::STR_HUB_TOKEN, SETTINGS.hubToken, sizeof(SETTINGS.hubToken), "hubToken",
+                            StrId::STR_CAT_SYSTEM)
+            .withObfuscated());
     add(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName), "deviceName",
                             StrId::STR_CAT_SYSTEM));
     add(SettingInfo::Value(

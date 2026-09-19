@@ -1,5 +1,8 @@
 #include "HomeActivity.h"
 
+#include "activities/hub/HubActivity.h"
+#include "network/HubClient.h"
+
 #include <Bitmap.h>
 #include <Epub.h>
 #include <FsHelpers.h>
@@ -66,6 +69,7 @@ enum class HomeMenuAction {
   ReadingStats,
   Bookmarks,
   FileTransfer,
+  Hub,
   Settings,
 };
 
@@ -76,7 +80,7 @@ struct HomeMenuEntry {
 };
 
 struct HomeMenuEntries {
-  static constexpr int kCapacity = 8;
+  static constexpr int kCapacity = 9;
   std::array<HomeMenuEntry, kCapacity> entries{};
   int count = 0;
 
@@ -312,6 +316,10 @@ void appendHomeMenuItems(HomeMenuEntries& items, bool hasOpdsServers, bool hasRe
   }
 
   items.push({tr(STR_FILE_TRANSFER), Transfer, HomeMenuAction::FileTransfer});
+  // Hidden until a bridge address is saved, so the row never leads to a dead end.
+  if (HubClient::isConfigured()) {
+    items.push({tr(STR_HUB), Wifi, HomeMenuAction::Hub});
+  }
   items.push({tr(STR_SETTINGS_TITLE), Settings, HomeMenuAction::Settings});
 }
 
@@ -1614,6 +1622,7 @@ void HomeActivity::loop() {
             onFileTransferOpen();
             break;
           case HomeMenuAction::ContinueReading:
+          case HomeMenuAction::Hub:
           case HomeMenuAction::Settings:
             break;
         }
@@ -1857,6 +1866,10 @@ void HomeActivity::loop() {
         break;
       case HomeMenuAction::FileTransfer:
         onFileTransferOpen();
+        break;
+      case HomeMenuAction::Hub:
+        // No result to read back; the Hub just returns here when it is done.
+        startActivityForResult(std::make_unique<HubActivity>(renderer, mappedInput), [](const ActivityResult&) {});
         break;
       case HomeMenuAction::Settings:
         onSettingsOpen();

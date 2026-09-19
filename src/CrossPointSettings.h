@@ -541,6 +541,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   char opdsDownloadFolder[64] = "";
   // Nearby file receive destination (empty = SD root).
   char nearbyReceiveFolder[64] = "";
+  // xthub bridge: the owner's own service fronting Home Assistant and Notion.
+  // Held here rather than on the device's own credentials, because the bridge
+  // is what holds those; this is one shared secret for one LAN service.
+  char hubUrl[128] = "";
+  char hubToken[64] = "";
   // Hide battery percentage
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press page turn button behavior
