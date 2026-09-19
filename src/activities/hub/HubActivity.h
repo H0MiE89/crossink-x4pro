@@ -86,7 +86,9 @@ class HubActivity final : public Activity {
   void goBack();
   void activateRow(int index);
   void runFetch();
-  void applyError(HubClient::Error error, const std::string& message);
+  // Pure: the caller stores the result under a RenderLock with the rest of
+  // the state it is publishing, so the render task never sees a half update.
+  std::string errorText(HubClient::Error error, const std::string& message) const;
   void connectWifi();
   void onWifiReady(bool connected);
   void moveSelection(int delta);

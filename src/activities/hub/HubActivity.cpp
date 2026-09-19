@@ -112,15 +112,17 @@ void HubActivity::connectWifi() {
 }
 
 void HubActivity::onWifiReady(const bool connected) {
-  if (!connected) {
-    statusMessage = tr(STR_HUB_UNREACHABLE);
-    statusIsError = true;
-    requestUpdate();
-    return;
+  {
+    RenderLock lock(*this);
+    if (connected) {
+      // The menu itself needs no data; each page fetches when it opens.
+      statusMessage.clear();
+      statusIsError = false;
+    } else {
+      statusMessage = tr(STR_HUB_UNREACHABLE);
+      statusIsError = true;
+    }
   }
-  // The menu itself needs no data; each page fetches when it opens.
-  statusMessage.clear();
-  statusIsError = false;
   requestUpdate();
 }
 
@@ -163,12 +165,17 @@ int HubActivity::rowCount() const {
 }
 
 void HubActivity::openPage(const Page next) {
-  page = next;
-  selectedIndex = 0;
-  topIndex = 0;
-  listNav.reset(0);
-  statusMessage.clear();
-  statusIsError = false;
+  {
+    // Page and selection are read by the render task, so they change together
+    // rather than leaving it a page index that disagrees with the rows.
+    RenderLock lock(*this);
+    page = next;
+    selectedIndex = 0;
+    topIndex = 0;
+    listNav.reset(0);
+    statusMessage.clear();
+    statusIsError = false;
+  }
   needsFetch = next != Page::Menu;
   requestUpdate();
 }
@@ -179,73 +186,93 @@ void HubActivity::goBack() {
     return;
   }
   if (page == Page::Note) {
-    noteBlocks.clear();
-    noteBlocks.shrink_to_fit();
-    openPage(Page::Notes);
+    {
+      RenderLock lock(*this);
+      noteBlocks.clear();
+      noteBlocks.shrink_to_fit();
+      noteNext = -1;
+    }
+    // The note list is still in memory and cannot have changed while a note was
+    // open, so go back to it without paying for another round trip.
+    {
+      RenderLock lock(*this);
+      page = Page::Notes;
+      selectedIndex = 0;
+      topIndex = 0;
+      listNav.reset(0);
+      statusMessage = notes.empty() ? tr(STR_HUB_NOTHING) : "";
+      statusIsError = false;
+    }
+    needsFetch = false;
+    requestUpdate();
     return;
   }
-  page = Page::Menu;
-  selectedIndex = 0;
-  topIndex = 0;
-  listNav.reset(0);
-  statusMessage.clear();
-  statusIsError = false;
+  {
+    RenderLock lock(*this);
+    page = Page::Menu;
+    selectedIndex = 0;
+    topIndex = 0;
+    listNav.reset(0);
+    statusMessage.clear();
+    statusIsError = false;
+  }
   needsFetch = false;
   requestUpdate();
 }
 
-void HubActivity::applyError(const HubClient::Error error, const std::string& message) {
-  statusIsError = true;
+std::string HubActivity::errorText(const HubClient::Error error, const std::string& message) const {
   // The bridge's own sentence is more useful than a generic one, so prefer it
   // and fall back to a translated line only when it did not send one.
-  if (!message.empty()) {
-    statusMessage = message;
-    return;
-  }
+  if (!message.empty()) return message;
   switch (error) {
     case HubClient::NOT_CONFIGURED:
-      statusMessage = tr(STR_HUB_NOT_SET);
-      break;
+      return tr(STR_HUB_NOT_SET);
     case HubClient::AUTH_FAILED:
-      statusMessage = tr(STR_HUB_REJECTED);
-      break;
+      return tr(STR_HUB_REJECTED);
     case HubClient::NOT_FOUND:
-      statusMessage = tr(STR_HUB_NOT_AVAILABLE);
-      break;
+      return tr(STR_HUB_NOT_AVAILABLE);
     case HubClient::NETWORK_ERROR:
-      statusMessage = tr(STR_HUB_UNREACHABLE);
-      break;
+      return tr(STR_HUB_UNREACHABLE);
     default:
-      statusMessage = tr(STR_HUB_FAILED);
-      break;
+      return tr(STR_HUB_FAILED);
   }
 }
 
 void HubActivity::runFetch() {
   needsFetch = false;
   busy = true;
-  statusMessage.clear();
-  statusIsError = false;
+
+  // The request runs against locals and only the swap below is locked. Holding
+  // RenderLock across an eight-second HTTP call would stall the render task;
+  // mutating the live vectors without it would let that task walk a list while
+  // it reallocates, which is a crash rather than a glitch.
+  std::vector<HubTile> nextTiles;
+  std::vector<HubTodo> nextTasks;
+  std::vector<HubEvent> nextEvents;
+  std::vector<HubNote> nextNotes;
+  std::vector<HubBlock> nextBlocks;
+  std::string nextTitle = noteTitle;
+  int nextNoteNext = -1;
 
   std::string message;
   HubClient::Error error = HubClient::OK;
+  const Page fetching = page;
 
-  switch (page) {
+  switch (fetching) {
     case Page::Lights:
-      error = HubClient::fetchTiles(tiles, message);
+      error = HubClient::fetchTiles(nextTiles, message);
       break;
     case Page::Tasks:
-      error = HubClient::fetchTodo(tasks, message);
+      error = HubClient::fetchTodo(nextTasks, message);
       break;
     case Page::Calendar:
-      error = HubClient::fetchCalendar(events, message);
+      error = HubClient::fetchCalendar(nextEvents, message);
       break;
     case Page::Notes:
-      error = HubClient::fetchNotes(notes, message);
+      error = HubClient::fetchNotes(nextNotes, message);
       break;
     case Page::Note:
-      noteFrom = noteNext < 0 ? 0 : noteNext;
-      error = HubClient::fetchNote(noteId, noteFrom, noteTitle, noteBlocks, noteNext, message);
+      error = HubClient::fetchNote(noteId, noteFrom, nextTitle, nextBlocks, nextNoteNext, message);
       break;
     default:
       break;
@@ -253,16 +280,57 @@ void HubActivity::runFetch() {
 
   busy = false;
 
-  if (error != HubClient::OK) {
-    applyError(error, message);
-  } else if (rowCount() == 0) {
-    statusMessage = tr(STR_HUB_NOTHING);
-    statusIsError = false;
-  }
+  // Back on a page the user already left: drop the answer rather than paint it
+  // over whatever they are looking at now.
+  if (page != fetching) return;
 
-  selectedIndex = 0;
-  topIndex = 0;
-  listNav.reset(0);
+  {
+    RenderLock lock(*this);
+    int count = 0;
+    switch (fetching) {
+      case Page::Lights:
+        if (error == HubClient::OK) tiles = std::move(nextTiles);
+        count = static_cast<int>(tiles.size());
+        break;
+      case Page::Tasks:
+        if (error == HubClient::OK) tasks = std::move(nextTasks);
+        count = static_cast<int>(tasks.size());
+        break;
+      case Page::Calendar:
+        if (error == HubClient::OK) events = std::move(nextEvents);
+        count = static_cast<int>(events.size());
+        break;
+      case Page::Notes:
+        if (error == HubClient::OK) notes = std::move(nextNotes);
+        count = static_cast<int>(notes.size());
+        break;
+      case Page::Note:
+        if (error == HubClient::OK) {
+          noteBlocks = std::move(nextBlocks);
+          noteTitle = std::move(nextTitle);
+          noteNext = nextNoteNext;
+        }
+        count = static_cast<int>(noteBlocks.size());
+        break;
+      default:
+        break;
+    }
+
+    if (error != HubClient::OK) {
+      statusMessage = errorText(error, message);
+      statusIsError = true;
+    } else if (count == 0) {
+      statusMessage = tr(STR_HUB_NOTHING);
+      statusIsError = false;
+    } else {
+      statusMessage.clear();
+      statusIsError = false;
+    }
+
+    selectedIndex = 0;
+    topIndex = 0;
+    listNav.reset(0);
+  }
   requestUpdate();
 }
 
@@ -276,56 +344,80 @@ void HubActivity::activateRow(const int index) {
       return;
 
     case Page::Lights: {
+      // Copy the id before the call: the vector is only read here, but the id
+      // is what the answer is matched against and the row may move meanwhile.
+      const std::string entityId = tiles[index].id;
       HubTile updated;
       busy = true;
-      const auto error = HubClient::toggleTile(tiles[index].id, updated, message);
+      const auto error = HubClient::toggleTile(entityId, updated, message);
       busy = false;
-      if (error != HubClient::OK) {
-        applyError(error, message);
-      } else {
-        // Repaint one row from the bridge's answer instead of refetching the
-        // whole list, which would cost a second round trip per tap.
-        tiles[index].state = updated.state;
-        if (!updated.name.empty()) tiles[index].name = updated.name;
-        statusMessage.clear();
-        statusIsError = false;
+      {
+        RenderLock lock(*this);
+        if (error != HubClient::OK) {
+          statusMessage = errorText(error, message);
+          statusIsError = true;
+        } else {
+          // Repaint one row from the bridge's answer instead of refetching the
+          // whole list, which would cost a second round trip per tap.
+          for (auto& tile : tiles) {
+            if (tile.id != entityId) continue;
+            tile.state = updated.state;
+            if (!updated.name.empty()) tile.name = updated.name;
+            break;
+          }
+          statusMessage.clear();
+          statusIsError = false;
+        }
       }
       requestUpdate();
       return;
     }
 
     case Page::Tasks: {
+      const std::string uid = tasks[index].id;
       busy = true;
-      const auto error = HubClient::completeTodo(tasks[index].id, message);
+      const auto error = HubClient::completeTodo(uid, message);
       busy = false;
-      if (error != HubClient::OK) {
-        applyError(error, message);
-      } else {
-        statusMessage.clear();
-        statusIsError = false;
-        tasks.erase(tasks.begin() + index);
-        if (selectedIndex >= static_cast<int>(tasks.size())) {
-          selectedIndex = tasks.empty() ? 0 : static_cast<int>(tasks.size()) - 1;
+      {
+        RenderLock lock(*this);
+        if (error != HubClient::OK) {
+          statusMessage = errorText(error, message);
+          statusIsError = true;
+        } else {
+          for (size_t i = 0; i < tasks.size(); i++) {
+            if (tasks[i].id != uid) continue;
+            tasks.erase(tasks.begin() + static_cast<long>(i));
+            break;
+          }
+          if (selectedIndex >= static_cast<int>(tasks.size())) {
+            selectedIndex = tasks.empty() ? 0 : static_cast<int>(tasks.size()) - 1;
+          }
+          statusMessage = tasks.empty() ? tr(STR_HUB_NOTHING) : "";
+          statusIsError = false;
+          listNav.selected = selectedIndex;
         }
-        if (tasks.empty()) statusMessage = tr(STR_HUB_NOTHING);
       }
       requestUpdate();
       return;
     }
 
-    case Page::Notes:
+    case Page::Notes: {
+      RenderLock lock(*this);
       noteId = notes[index].id;
       noteTitle = notes[index].name;
       noteBlocks.clear();
       noteNext = 0;
       noteFrom = 0;
+      lock.unlock();
       openPage(Page::Note);
       return;
+    }
 
     case Page::Note:
       // Only the trailing row pulls the next chunk. Tapping a line of prose
       // should do nothing, not jump the reader forward.
       if (noteNext >= 0 && index == static_cast<int>(noteBlocks.size())) {
+        noteFrom = noteNext;
         needsFetch = true;
         requestUpdate();
       }
