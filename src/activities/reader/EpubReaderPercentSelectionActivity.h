@@ -59,11 +59,12 @@ class EpubReaderPercentSelectionActivity final : public Activity {
   // to the actual delta for the current mode's storage unit.
   int deltaForDisplayStep(int displaySteps) const;
 
-  // Numeric keypad entry (typed digits), alongside the slider. Touch always shows the
-  // keypad; non-touch defaults to the slider and enters keypad entry via long-press Confirm.
+  // Numeric keypad entry, alongside the slider. Touch always shows the keypad;
+  // non-touch defaults to the slider and enters keypad entry via long-press Confirm.
   bool isKeypadVisible() const;
   void enterKeypad();
   void exitKeypad();
+  void seedKeypadEntryFromValue();
   void moveKeypadFocus(int rowDelta, int colDelta);
   void activateKeypadFocus();
   void handleKeypadValue(int16_t keyValue);
@@ -74,10 +75,11 @@ class EpubReaderPercentSelectionActivity final : public Activity {
   void confirmKeypad();
 
   bool keypadActive = false;
-  char entryText[8] = {0};
+  char entryText[12] = {0};
   uint8_t entryLen = 0;
   int keypadRow = 0;
   int keypadCol = 0;
+  bool keypadBackspaceFocused = false;
   // Long-press Confirm toggles into keypad mode (or backspaces within it); swallow
   // the eventual release so it doesn't also fire the short-press action.
   bool confirmLongPressFired = false;

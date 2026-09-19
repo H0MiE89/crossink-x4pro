@@ -101,10 +101,10 @@ bool EpubReaderPercentSelectionActivity::isKeypadVisible() const { return mapped
 
 void EpubReaderPercentSelectionActivity::enterKeypad() {
   keypadActive = true;
-  entryLen = 0;
-  entryText[0] = 0;
+  seedKeypadEntryFromValue();
   keypadRow = 0;
   keypadCol = 0;
+  keypadBackspaceFocused = false;
   requestUpdate();
 }
 
@@ -113,7 +113,32 @@ void EpubReaderPercentSelectionActivity::exitKeypad() {
   requestUpdate();
 }
 
+void EpubReaderPercentSelectionActivity::seedKeypadEntryFromValue() {
+  if (mode == Mode::StablePage) {
+    std::snprintf(entryText, sizeof(entryText), "%lu", static_cast<unsigned long>(value));
+  } else if (value % 100 == 0) {
+    std::snprintf(entryText, sizeof(entryText), "%lu", static_cast<unsigned long>(value / 100));
+  } else if (value % 10 == 0) {
+    std::snprintf(entryText, sizeof(entryText), "%lu.%lu", static_cast<unsigned long>(value / 100),
+                  static_cast<unsigned long>((value % 100) / 10));
+  } else {
+    std::snprintf(entryText, sizeof(entryText), "%lu.%02lu", static_cast<unsigned long>(value / 100),
+                  static_cast<unsigned long>(value % 100));
+  }
+  entryLen = static_cast<uint8_t>(std::strlen(entryText));
+}
+
 void EpubReaderPercentSelectionActivity::moveKeypadFocus(const int rowDelta, const int colDelta) {
+  if (keypadBackspaceFocused) {
+    if (rowDelta > 0 || colDelta != 0) keypadBackspaceFocused = false;
+    requestUpdate();
+    return;
+  }
+  if (rowDelta < 0 && keypadRow == 0) {
+    keypadBackspaceFocused = true;
+    requestUpdate();
+    return;
+  }
   keypadRow = ((keypadRow + rowDelta) % 4 + 4) % 4;
   keypadCol = ((keypadCol + colDelta) % 3 + 3) % 3;
   // The '.' cell (row 3, col 1) is disabled outside Percent mode; step past it in
@@ -131,6 +156,10 @@ void EpubReaderPercentSelectionActivity::moveKeypadFocus(const int rowDelta, con
 }
 
 void EpubReaderPercentSelectionActivity::activateKeypadFocus() {
+  if (keypadBackspaceFocused) {
+    backspaceEntry();
+    return;
+  }
   // Grid layout: 1 2 3 / 4 5 6 / 7 8 9 / 0 . OK (matches handleKeypadValue's key values).
   static constexpr int16_t kGridValues[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, kKeypadDot, kKeypadOk};
   const int idx = keypadRow * 3 + keypadCol;
@@ -189,6 +218,7 @@ void EpubReaderPercentSelectionActivity::appendDecimalPoint() {
 void EpubReaderPercentSelectionActivity::backspaceEntry() {
   if (entryLen == 0) return;
   entryText[--entryLen] = 0;
+  if (entryLen == 0) keypadBackspaceFocused = false;
   requestUpdate();
 }
 
@@ -419,16 +449,15 @@ void EpubReaderPercentSelectionActivity::buildKeypadScreen(UiApp::ScreenType& sc
   const int16_t readoutLh = screen.target().lineHeight(readout.font);
   const int16_t rowH = std::max<int16_t>(theme.rowHeight, static_cast<int16_t>(readoutLh + 16));
   const fui::Rect readoutRow = screen.takeTop(rowH, theme.spaceLg);
+  const int16_t iconSize = readoutRow.height;
+  const fui::Rect iconRect{static_cast<int16_t>(readoutRow.right() - iconSize), readoutRow.y, iconSize,
+                           readoutRow.height};
 
   if (mappedInput.hasTouch()) {
     // A backspace icon sits at the row's right edge; the grid itself has no room for a
-    // 13th key without breaking the 1-9/0/./OK layout, so it lives next to the readout.
-    const int16_t iconSize = readoutRow.height;
-    const fui::Rect iconRect{static_cast<int16_t>(readoutRow.right() - iconSize), readoutRow.y, iconSize,
-                             readoutRow.height};
-    const fui::Rect textRect{readoutRow.x, readoutRow.y, static_cast<int16_t>(readoutRow.width - iconSize),
-                             readoutRow.height};
-    screen.target().text(textRect, line, readout);
+    // 13th key without breaking the 1-9/0/./OK layout. It overlays the full-width
+    // readout so the destination stays centered while editing.
+    screen.target().text(readoutRow, line, readout);
 
     fui::ButtonProps backspaceBtn;
     backspaceBtn.icon = fui::bitmapFromIcon(icon_backspace_28);
@@ -438,6 +467,17 @@ void EpubReaderPercentSelectionActivity::buildKeypadScreen(UiApp::ScreenType& sc
     screen.button(backspaceBtn, iconRect);
   } else {
     screen.target().text(readoutRow, line, readout);
+
+    // Button-only devices move Up from the first keypad row to this control;
+    // Confirm deletes the final digit. The FreeInk button supplies the same icon
+    // and selected treatment as touch, while the activity owns directional focus.
+    fui::ButtonProps backspaceBtn;
+    backspaceBtn.icon = fui::bitmapFromIcon(icon_backspace_28);
+    backspaceBtn.action = ACTION_KEYPAD_BACKSPACE;
+    backspaceBtn.inputMask = fui::InputNone;
+    backspaceBtn.state = keypadBackspaceFocused ? fui::StateSelected : fui::StateNormal;
+    backspaceBtn.enabled = entryLen > 0;
+    screen.button(backspaceBtn, iconRect);
   }
 
   const fui::Rect gridArea = screen.contentRect().inset(fui::Insets{0, theme.spaceLg, theme.spaceLg, theme.spaceLg});
@@ -468,7 +508,8 @@ void EpubReaderPercentSelectionActivity::buildKeypadScreen(UiApp::ScreenType& sc
   gridProps.minTouchSize = theme.minTouchSize;
   gridProps.radius = 3;
   // Non-touch shows which key directional nav is on; touch has no such focus concept.
-  gridProps.selectedIndex = mappedInput.hasTouch() ? int16_t{-1} : static_cast<int16_t>(keypadRow * 3 + keypadCol);
+  gridProps.selectedIndex =
+      mappedInput.hasTouch() || keypadBackspaceFocused ? int16_t{-1} : static_cast<int16_t>(keypadRow * 3 + keypadCol);
   fui::keyGrid(screen.frame(), gridArea, gridProps);
 }
 
@@ -496,7 +537,8 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   uiReady = true;
 
   // Button hints follow the current front button layout and auto-hide on touch devices.
-  const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), "-", "+");
+  const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), tr(STR_DIR_LEFT),
+                                            tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
 
   renderer.displayBuffer();
