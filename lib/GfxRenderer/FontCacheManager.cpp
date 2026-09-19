@@ -134,6 +134,7 @@ void FontCacheManager::recordText(const char* text, int fontId, EpdFontFamily::S
   while (*cursor) {
     uint32_t codepoint = utf8NextCodepoint(&cursor);
     if (codepoint == 0) break;
+    if (utf8IsVariationSelector(codepoint)) continue;
     if ((style & EpdFontFamily::SMALL_CAPS) != 0 && codepoint >= 'a' && codepoint <= 'z') {
       codepoint -= 'a' - 'A';
     }

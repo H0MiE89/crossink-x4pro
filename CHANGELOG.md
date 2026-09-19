@@ -54,6 +54,7 @@
 - Quick Actions assignments stay visible in button-combo settings, and X4 Classic can use the Up + Down shortcut.
 - Sync Progress from the reader menu opens KOReader setup when credentials have not been configured.
 - Button-combo settings no longer offer Sleep because the same combo cannot wake the reader.
+- EPUB variation selectors no longer appear as missing-glyph boxes after otherwise supported symbols.
 
 ## [v1.5.1] - 2026-09-10
 

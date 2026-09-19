@@ -52,6 +52,8 @@ bool collectUniqueCodepoints(const char* text, uint32_t* codepoints, uint32_t& c
   while (*p) {
     uint32_t cp = utf8NextCodepoint(&p);
     if (cp == 0) break;
+    if (utf8IsVariationSelector(cp)) continue;
+
     bool found = false;
     for (uint32_t i = 0; i < cpCount; i++) {
       if (codepoints[i] == cp) {
@@ -849,6 +851,7 @@ int SdCardFont::prewarm(const char* utf8Text, uint8_t styleMask, bool metadataOn
   while (*p && cpCount < MAX_PAGE_GLYPHS) {
     uint32_t cp = utf8NextCodepoint(&p);
     if (cp == 0) break;
+    if (utf8IsVariationSelector(cp)) continue;
 
     bool found = false;
     for (uint32_t i = 0; i < cpCount; i++) {
@@ -1591,7 +1594,7 @@ int SdCardFont::buildAdvanceTableForCodepoints(const uint32_t* sourceCodepoints,
   uint32_t outCount = 0;
   for (uint32_t i = 0; i < cpCount; ++i) {
     const uint32_t cp = sourceCodepoints[i];
-    if (cp == 0) continue;
+    if (cp == 0 || utf8IsVariationSelector(cp)) continue;
     codepoints[outCount++] = cp;
   }
   if (includeSpace) codepoints[outCount++] = ' ';

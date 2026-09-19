@@ -42,26 +42,31 @@ bool mayContainRtlBytes(const char* str) {
   return false;
 }
 
-// Returns the first rendered codepoint of a word (skipping leading soft hyphens).
+// Returns the first rendered codepoint of a word (skipping leading soft hyphens and variation selectors).
 uint32_t firstCodepoint(const std::string& word) {
   const auto* ptr = reinterpret_cast<const unsigned char*>(word.c_str());
   while (true) {
     const uint32_t cp = utf8NextCodepoint(&ptr);
     if (cp == 0) return 0;
-    if (cp != 0x00AD) return cp;  // skip soft hyphens
+    if (cp != 0x00AD && !utf8IsVariationSelector(cp)) return cp;
   }
 }
 
-// Returns the last codepoint of a word by scanning backward for the start of the last UTF-8 sequence.
+// Returns the last rendered codepoint of a word by scanning backward for the start of the last UTF-8 sequence.
 uint32_t lastCodepoint(const std::string& word) {
-  if (word.empty()) return 0;
-  // UTF-8 continuation bytes start with 10xxxxxx; scan backward to find the leading byte.
-  size_t i = word.size() - 1;
-  while (i > 0 && (static_cast<uint8_t>(word[i]) & 0xC0) == 0x80) {
-    --i;
+  size_t end = word.size();
+  while (end > 0) {
+    // UTF-8 continuation bytes start with 10xxxxxx; scan backward to find the leading byte.
+    size_t i = end - 1;
+    while (i > 0 && (static_cast<uint8_t>(word[i]) & 0xC0) == 0x80) {
+      --i;
+    }
+    const auto* ptr = reinterpret_cast<const unsigned char*>(word.c_str() + i);
+    const uint32_t cp = utf8NextCodepoint(&ptr);
+    if (!utf8IsVariationSelector(cp)) return cp;
+    end = i;
   }
-  const auto* ptr = reinterpret_cast<const unsigned char*>(word.c_str() + i);
-  return utf8NextCodepoint(&ptr);
+  return 0;
 }
 
 bool containsSoftHyphen(const std::string& word) { return word.find(SOFT_HYPHEN_UTF8) != std::string::npos; }
@@ -159,7 +164,7 @@ uint32_t countCodepoints(const std::string_view text) {
 bool hasCjkBreakOpportunityBetween(const uint32_t leftCp, const uint32_t rightCp) {
   if (!utf8IsCjkBreakable(leftCp) && !utf8IsCjkBreakable(rightCp)) return false;
   if (isNoBreakAfterCjkPunctuation(leftCp) || isNoBreakBeforeCjkPunctuation(rightCp)) return false;
-  if (utf8IsCombiningMark(rightCp)) return false;
+  if (utf8IsCombiningMark(rightCp) || utf8IsVariationSelector(rightCp)) return false;
   return true;
 }
 
@@ -697,7 +702,9 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   while (ptr < end) {
     const unsigned char* currentCpStart = ptr;
     uint32_t cp = utf8NextCodepoint(&ptr);
-    bool isWordChar = isWordCharacter(cp);
+    // A variation selector belongs to the preceding base character regardless
+    // of whether that base is a word character or a symbol.
+    bool isWordChar = utf8IsVariationSelector(cp) ? inWordSegment : isWordCharacter(cp);
 
     // Whenever the character type flips, slice off the segment we just completed and process it
     if (isWordChar != inWordSegment) {
@@ -1452,9 +1459,10 @@ bool ParsedText::splitTokenAtCodepointBoundary(const size_t wordIndex, const int
     const auto* next = cursor;
     if (utf8NextCodepoint(&next) == 0 || next <= cursor || next >= wordEnd) break;
 
-    // Keep combining marks attached to their base codepoint.
+    // Keep combining marks and variation selectors attached to their base codepoint.
     const auto* following = next;
-    if (utf8IsCombiningMark(utf8NextCodepoint(&following))) {
+    const uint32_t followingCp = utf8NextCodepoint(&following);
+    if (utf8IsCombiningMark(followingCp) || utf8IsVariationSelector(followingCp)) {
       cursor = next;
       continue;
     }

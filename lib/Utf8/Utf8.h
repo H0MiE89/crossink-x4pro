@@ -109,3 +109,11 @@ inline bool utf8IsCombiningMark(const uint32_t cp) {
          || (cp >= 0x20D0 && cp <= 0x20FF)   // Combining Diacritical Marks for Symbols
          || (cp >= 0xFE20 && cp <= 0xFE2F);  // Combining Half Marks
 }
+
+// Variation selectors modify the preceding glyph's presentation. The bitmap
+// font pipeline has no variation-selector lookup, so they must not fall back
+// to a visible replacement glyph or consume layout width on their own.
+inline bool utf8IsVariationSelector(const uint32_t cp) {
+  return (cp >= 0x180B && cp <= 0x180D) || cp == 0x180F || (cp >= 0xFE00 && cp <= 0xFE0F) ||
+         (cp >= 0xE0100 && cp <= 0xE01EF);
+}
