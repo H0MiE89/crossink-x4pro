@@ -1,7 +1,10 @@
 #include "HomeActivity.h"
 
+#include "AppCapabilities.h"
+#if CROSSINK_APP_CAP_HUB
 #include "activities/hub/HubActivity.h"
 #include "network/HubClient.h"
+#endif
 
 #include <Bitmap.h>
 #include <Epub.h>
@@ -316,10 +319,14 @@ void appendHomeMenuItems(HomeMenuEntries& items, bool hasOpdsServers, bool hasRe
   }
 
   items.push({tr(STR_FILE_TRANSFER), Transfer, HomeMenuAction::FileTransfer});
+#if CROSSINK_APP_CAP_HUB
   // Hidden until a bridge address is saved, so the row never leads to a dead end.
+  // With this row present the list reaches exactly kCapacity; anything added
+  // after it silently drops Settings off Home.
   if (HubClient::isConfigured()) {
     items.push({tr(STR_HUB), Wifi, HomeMenuAction::Hub});
   }
+#endif
   items.push({tr(STR_SETTINGS_TITLE), Settings, HomeMenuAction::Settings});
 }
 
@@ -1868,8 +1875,10 @@ void HomeActivity::loop() {
         onFileTransferOpen();
         break;
       case HomeMenuAction::Hub:
+#if CROSSINK_APP_CAP_HUB
         // No result to read back; the Hub just returns here when it is done.
         startActivityForResult(std::make_unique<HubActivity>(renderer, mappedInput), [](const ActivityResult&) {});
+#endif
         break;
       case HomeMenuAction::Settings:
         onSettingsOpen();

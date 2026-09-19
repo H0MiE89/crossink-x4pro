@@ -60,6 +60,9 @@ class HubClient {
   };
 
   static bool isConfigured();
+  // The transport is a plain WiFiClient, so an https address would speak
+  // cleartext at a TLS listener and fail with a misleading message.
+  static bool isPlainHttp();
 
   // `message` receives a short sentence fit to show on screen. On OK it is the
   // bridge's own wording where there is one, otherwise it is left untouched.

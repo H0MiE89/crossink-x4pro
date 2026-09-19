@@ -11,6 +11,17 @@
 #error "CROSSINK_APP_CAP_TOUCH must be 0 or 1"
 #endif
 
+// The Hub pulls JSON from the owner's own LAN service. Parsing even a few
+// kilobytes alongside the Wi-Fi stack is a large bite out of the C3's ~380 KB,
+// so it is only built where there is PSRAM to absorb it.
+#ifndef CROSSINK_APP_CAP_HUB
+#define CROSSINK_APP_CAP_HUB 0
+#endif
+
+#if CROSSINK_APP_CAP_HUB != 0 && CROSSINK_APP_CAP_HUB != 1
+#error "CROSSINK_APP_CAP_HUB must be 0 or 1"
+#endif
+
 #ifndef CROSSINK_APP_CAP_USB_DRIVE
 #error "Define CROSSINK_APP_CAP_USB_DRIVE as 0 or 1 in the PlatformIO environment"
 #endif

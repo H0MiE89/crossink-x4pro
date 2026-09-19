@@ -1,3 +1,5 @@
+#include "AppCapabilities.h"
+#if CROSSINK_APP_CAP_HUB
 #include "HubClient.h"
 
 #include <ArduinoJson.h>
@@ -7,6 +9,7 @@
 #include <WiFiClient.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "CrossPointSettings.h"
 
@@ -50,6 +53,37 @@ std::string escapeSegment(const std::string& raw) {
   return out;
 }
 
+/**
+ * Stops a reply at a fixed budget no matter what the server claims. Without it
+ * a chunked or close-delimited body is read until the peer hangs up, which on
+ * a device with no memory protection is how a wrong hubUrl becomes a reboot.
+ */
+class BoundedStream : public Stream {
+ public:
+  BoundedStream(Stream& inner, const size_t budget) : inner(inner), remaining(budget) {}
+
+  int available() override { return remaining == 0 ? 0 : inner.available(); }
+  int peek() override { return remaining == 0 ? -1 : inner.peek(); }
+  size_t write(uint8_t) override { return 0; }
+
+  int read() override {
+    if (remaining == 0) {
+      hitCap = true;
+      return -1;
+    }
+    const int value = inner.read();
+    if (value >= 0) remaining--;
+    return value;
+  }
+
+  bool overran() const { return hitCap; }
+
+ private:
+  Stream& inner;
+  size_t remaining;
+  bool hitCap = false;
+};
+
 HubClient::Error statusToError(const int status) {
   if (status == 401 || status == 403) return HubClient::AUTH_FAILED;
   if (status == 404) return HubClient::NOT_FOUND;
@@ -64,6 +98,10 @@ HubClient::Error statusToError(const int status) {
  */
 HubClient::Error request(const char* method, const std::string& path, JsonDocument& doc, std::string& message) {
   if (!HubClient::isConfigured()) return HubClient::NOT_CONFIGURED;
+  if (!HubClient::isPlainHttp()) {
+    message = "The hub address must start with http://";
+    return HubClient::NOT_CONFIGURED;
+  }
   if (WiFi.status() != WL_CONNECTED) return HubClient::NETWORK_ERROR;
 
   const std::string url = baseUrl() + path;
@@ -95,12 +133,20 @@ HubClient::Error request(const char* method, const std::string& path, JsonDocume
     return HubClient::SERVER_ERROR;
   }
 
-  const String body = http.getString();
+  BoundedStream bounded(*http.getStreamPtr(), MAX_BODY_BYTES);
+  const DeserializationError parseError = deserializeJson(doc, bounded);
+  const bool overran = bounded.overran();
   http.end();
 
-  const DeserializationError parseError = deserializeJson(doc, body.c_str());
+  if (overran) {
+    LOG_ERR("Hub", "%s exceeded the %d byte cap", path.c_str(), MAX_BODY_BYTES);
+    return HubClient::SERVER_ERROR;
+  }
   if (parseError) {
-    LOG_ERR("Hub", "%s parse failed: %s", path.c_str(), parseError.c_str());
+    // A 2xx with no body is a valid answer for an action that returns nothing.
+    if (parseError == DeserializationError::EmptyInput && status >= 200 && status < 300) return HubClient::OK;
+    LOG_ERR("Hub", "%s parse failed: %s free=%u maxAlloc=%u", path.c_str(), parseError.c_str(), ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
     return status == 200 ? HubClient::JSON_ERROR : statusToError(status);
   }
 
@@ -112,6 +158,8 @@ HubClient::Error request(const char* method, const std::string& path, JsonDocume
 }  // namespace
 
 bool HubClient::isConfigured() { return SETTINGS.hubUrl[0] != '\0' && SETTINGS.hubToken[0] != '\0'; }
+
+bool HubClient::isPlainHttp() { return baseUrl().rfind("https://", 0) != 0; }
 
 HubClient::Error HubClient::fetchTiles(std::vector<HubTile>& out, std::string& message) {
   JsonDocument doc;
@@ -213,8 +261,15 @@ HubClient::Error HubClient::fetchNote(const std::string& id, const int from, std
   next = doc["next"].isNull() ? -1 : (doc["next"] | -1);
 
   blocks.clear();
+  int kept = 0;
   for (JsonObjectConst row : doc["blocks"].as<JsonArrayConst>()) {
-    if (blocks.size() >= MAX_BLOCKS) break;
+    if (blocks.size() >= MAX_BLOCKS) {
+      // Resume where the drop started, not where the bridge's chunk ended, or
+      // the skipped lines become a silent hole in the middle of the note.
+      LOG_ERR("Hub", "note chunk exceeded %u blocks; resuming at %d", MAX_BLOCKS, from + kept);
+      next = from + kept;
+      break;
+    }
     const char* kind = row["t"].as<const char*>();
     if (kind == nullptr) continue;
 
@@ -238,7 +293,10 @@ HubClient::Error HubClient::fetchNote(const std::string& id, const int from, std
     }
 
     block.text = row["x"].as<const char*>() ? row["x"].as<const char*>() : "";
+    kept++;
     if (block.kind == HubBlock::Rule || !block.text.empty()) blocks.push_back(std::move(block));
   }
   return OK;
 }
+
+#endif  // CROSSINK_APP_CAP_HUB

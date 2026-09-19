@@ -1,3 +1,5 @@
+#include "AppCapabilities.h"
+#if CROSSINK_APP_CAP_HUB
 #include "HubActivity.h"
 
 #include <GfxRenderer.h>
@@ -22,6 +24,7 @@ constexpr fui::ActionId ACTION_ROW = 1;
 constexpr StrId MENU_LABELS[] = {StrId::STR_HUB_LIGHTS, StrId::STR_HUB_TASKS, StrId::STR_HUB_CALENDAR,
                                  StrId::STR_HUB_NOTES};
 constexpr UIIcon MENU_ICONS[] = {UIIcon::Hotspot, UIIcon::BookmarkIcon, UIIcon::Recent, UIIcon::Text};
+
 
 void wifiOff() {
   WiFi.disconnect(false);
@@ -242,6 +245,17 @@ void HubActivity::runFetch() {
   needsFetch = false;
   busy = true;
 
+  // The request blocks the main loop, so without this the panel shows an empty
+  // frame for the whole round trip and reads as broken.
+  if (rowCount() == 0) {
+    {
+      RenderLock lock(*this);
+      statusMessage = tr(STR_LOADING);
+      statusIsError = false;
+    }
+    requestUpdateAndWait();
+  }
+
   // The request runs against locals and only the swap below is locked. Holding
   // RenderLock across an eight-second HTTP call would stall the render task;
   // mutating the live vectors without it would let that task walk a list while
@@ -280,8 +294,9 @@ void HubActivity::runFetch() {
 
   busy = false;
 
-  // Back on a page the user already left: drop the answer rather than paint it
-  // over whatever they are looking at now.
+  // Defensive: the fetch is synchronous today, so this cannot fire. It is here
+  // so that making it asynchronous later does not silently paint one page's
+  // answer over another.
   if (page != fetching) return;
 
   {
@@ -344,6 +359,8 @@ void HubActivity::activateRow(const int index) {
       return;
 
     case Page::Lights: {
+      // Touch skips disabled rows; the button path has to skip them too.
+      if (tiles[index].state < 0) return;
       // Copy the id before the call: the vector is only read here, but the id
       // is what the answer is matched against and the row may move meanwhile.
       const std::string entityId = tiles[index].id;
@@ -503,6 +520,12 @@ void HubActivity::loop() {
 }
 
 void HubActivity::buildMenuRows(std::vector<fui::ListItem>& items) {
+  // These arrays live here while MENU_COUNT lives in the header, so a fifth
+  // page would read them out of bounds with no diagnostic.
+  static_assert(sizeof(MENU_LABELS) / sizeof(MENU_LABELS[0]) == MENU_COUNT,
+                "MENU_LABELS must have one entry per menu page");
+  static_assert(sizeof(MENU_ICONS) / sizeof(MENU_ICONS[0]) == MENU_COUNT,
+                "MENU_ICONS must have one entry per menu page");
   for (int i = 0; i < MENU_COUNT; i++) {
     fui::ListItem item;
     item.label = I18N.get(MENU_LABELS[i]);
@@ -525,8 +548,10 @@ void HubActivity::buildContentRows(std::vector<fui::ListItem>& items) {
         item.label = tiles[i].name.c_str();
         // A real switch reads at a glance on e-ink; an unavailable entity is
         // dimmed and says so instead of showing a switch that lies.
+        // The list ORs in StateSelected and StateDisabled itself, so state is
+        // left alone; toggleChecked is what draws the knob.
         item.toggle = tiles[i].state >= 0;
-        item.state = tiles[i].state == 1 ? fui::StateChecked : fui::StateNormal;
+        item.toggleChecked = tiles[i].state == 1;
         if (tiles[i].state < 0) {
           item.enabled = false;
           item.subtitle = tr(STR_HUB_NOT_AVAILABLE);
@@ -687,5 +712,11 @@ void HubActivity::render(RenderLock&&) {
                                             rowCount() > 0 ? confirmLabel : "", tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(page)));
+  // Mixing the chunk in makes each page of a note a transition; a light toggle
+  // keeps the same key and stays fast.
+  const uint8_t refreshKey =
+      page == Page::Note ? static_cast<uint8_t>(0x80 ^ (noteFrom & 0x7F)) : static_cast<uint8_t>(page);
+  renderer.displayBuffer(screenTransitionRefresh.modeFor(refreshKey));
 }
+
+#endif  // CROSSINK_APP_CAP_HUB
