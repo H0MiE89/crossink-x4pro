@@ -166,6 +166,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     SIDE_LONG_FONT_SIZE = 1,
     SIDE_LONG_OFF = 2,
     SIDE_LONG_ORIENTATION_CHANGE = 3,
+    // Turns back a page, so a single side button covers both directions and
+    // the reading hand never has to move. Values persist, so append only.
+    SIDE_LONG_PREV_PAGE = 4,
     SIDE_LONG_PRESS_COUNT
   };
 

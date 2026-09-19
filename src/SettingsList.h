@@ -718,11 +718,12 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
                           {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS));
     add(SettingInfo::Enum(StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::sideButtonLongPress,
                           {StrId::STR_IGNORE, StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE,
-                           StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
+                           StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION, StrId::STR_PREV_PAGE},
                           "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
             .withEnumRawValues({CrossPointSettings::SIDE_LONG_OFF, CrossPointSettings::SIDE_LONG_CHAPTER_SKIP,
                                 CrossPointSettings::SIDE_LONG_FONT_SIZE,
-                                CrossPointSettings::SIDE_LONG_ORIENTATION_CHANGE}));
+                                CrossPointSettings::SIDE_LONG_ORIENTATION_CHANGE,
+                                CrossPointSettings::SIDE_LONG_PREV_PAGE}));
     add(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
                           {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS},
                           "frontButtonOrientationAware", StrId::STR_CAT_CONTROLS));

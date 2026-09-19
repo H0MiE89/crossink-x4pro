@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Added
+
+- Side button long-press can turn back a page. With both side buttons set to Next, one button then covers both directions and your reading hand never has to move. Set it in Settings > Controls > Long Press Action. Note that choosing any long-press action makes the side buttons act on release rather than on press, because a short press cannot be told apart from a long one until the button comes up.
+
 ## [v1.5.1] - 2026-09-10
 
 ### Added

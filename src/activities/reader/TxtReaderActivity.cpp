@@ -332,10 +332,18 @@ void TxtReaderActivity::loop() {
   auto [prevTriggered, nextTriggered, fromSideBtn, fromTilt] = ReaderUtils::detectPageTurn(mappedInput);
   prevTriggered = prevTriggered || touch.prev;
   nextTriggered = nextTriggered || touch.next;
-  (void)fromSideBtn;
-  (void)fromTilt;
   if (!prevTriggered && !nextTriggered) {
     return;
+  }
+
+  // Redirect a held side button backwards so one button reaches both
+  // directions and the reading hand never moves. Only a forward turn is
+  // redirected; holding a button already mapped to Previous keeps going back.
+  if (fromSideBtn && nextTriggered && !fromTilt && !touch.prev && !touch.next &&
+      mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS &&
+      SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_PREV_PAGE) {
+    nextTriggered = false;
+    prevTriggered = true;
   }
 
   if (prevTriggered && currentPage > 0) {

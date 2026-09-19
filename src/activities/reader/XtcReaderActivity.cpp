@@ -517,6 +517,16 @@ void XtcReaderActivity::loop() {
                    : SETTINGS.longPressButtonBehavior == CrossPointSettings::CHAPTER_SKIP);
   const int skipAmount = skipPages ? 10 : 1;
 
+  // Redirect a held side button backwards so one button reaches both
+  // directions and the reading hand never moves. Only a forward turn is
+  // redirected; holding a button already mapped to Previous keeps going back.
+  if (!fromTouch && !fromTilt && !powerPageTurn && fromSideBtn && nextTriggered &&
+      heldMs > ReaderUtils::SKIP_HOLD_MS &&
+      SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_PREV_PAGE) {
+    nextTriggered = false;
+    prevTriggered = true;
+  }
+
   bool goHome = false;
   bool needsUpdate = false;
   {

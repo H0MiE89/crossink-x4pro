@@ -3069,6 +3069,24 @@ void EpubReaderActivity::loop() {
     return;
   }
 
+  // Touch page turns deliberately ignore the physical-button long-press
+  // settings. Keep those saved settings intact for a later move back to a
+  // button device, but never let a held screen tap skip a chapter or rotate.
+  const bool fromTouch = touch.prev || touch.next;
+  const unsigned long heldMs = fromTouch ? touch.heldMs : mappedInput.getHeldTime();
+  const bool longPress = !fromTilt && heldMs > ReaderUtils::SKIP_HOLD_MS;
+
+  // Redirect a held side button backwards so one button reaches both
+  // directions and the reading hand never moves. This has to settle the
+  // direction before the end-of-book branch below, or a hold on the last page
+  // would leave the book instead of turning back. Only a forward turn is
+  // redirected; holding a button already mapped to Previous keeps going back.
+  if (!fromTouch && longPress && fromSideBtn && nextTriggered &&
+      SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_PREV_PAGE) {
+    nextTriggered = false;
+    prevTriggered = true;
+  }
+
   if (nextTriggered) {
     // Tilt page turns do not produce a raw button or touch edge, but should
     // still win over optional next-chapter indexing.
@@ -3094,12 +3112,6 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  // Touch page turns deliberately ignore the physical-button long-press
-  // settings. Keep those saved settings intact for a later move back to a
-  // button device, but never let a held screen tap skip a chapter or rotate.
-  const bool fromTouch = touch.prev || touch.next;
-  const unsigned long heldMs = fromTouch ? touch.heldMs : mappedInput.getHeldTime();
-  const bool longPress = !fromTilt && heldMs > ReaderUtils::SKIP_HOLD_MS;
   const bool skipChapter =
       !fromTouch && longPress &&
       (fromSideBtn ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
